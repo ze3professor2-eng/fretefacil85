@@ -1999,6 +1999,7 @@
                 // Update local cache after server confirms (or fallback)
                 try{ 
                     DB.updateDriver(driverId, { paymentStatus: newStatus });
+                    try{ if(typeof markDriverRecentlyUpdated === 'function'){ markDriverRecentlyUpdated(driverId); } }catch(e){}
                     // diagnostic: log local driver state and approved entry
                     try{ console.log('Local updateDriver applied', driverId, newStatus, DB.getDrivers().find(d=>String(d.id)===String(driverId))); }catch(e){}
                     try{ console.log('Local connectFreteLastApprovedDriver after update:', localStorage.getItem('connectFreteLastApprovedDriver')); }catch(e){}
