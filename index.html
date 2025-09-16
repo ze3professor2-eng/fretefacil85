@@ -832,6 +832,7 @@
                                 if(d){
                                     const updatedApproved = Object.assign({}, approved, d, { paymentStatus: d.paymentStatus || 'paid' });
                                     localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(updatedApproved));
+                                                    try{ renderApprovedDriverCard(); }catch(e){}
                                     // persist to server if available
                                     try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(updatedApproved).catch(()=>{}); } }catch(e){}
                                 }
@@ -853,6 +854,7 @@
                             const approved = JSON.parse(approvedRaw);
                             if(String(approved.id) === String(id)){
                                 localStorage.removeItem('connectFreteLastApprovedDriver');
+                                try{ renderApprovedDriverCard(); }catch(e){}
                                 try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(null).catch(()=>{}); } }catch(e){}
                             }
                         }
