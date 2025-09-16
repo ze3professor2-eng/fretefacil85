@@ -1393,9 +1393,13 @@
 
                             // If we have full info and paymentStatus is paid, run searchDrivers to show photos + info; otherwise fall back to displayApprovedDriver
                             if(full && full.paymentStatus === 'paid'){
-                                try{ searchDrivers(); }catch(e){ displayApprovedDriver(toShow); }
+                                try{ searchDrivers(); }catch(e){ 
+                                    const approvedCard = document.getElementById('approvedDriverCard');
+                                    if(!approvedCard || !approvedCard.innerHTML.trim()) displayApprovedDriver(toShow);
+                                }
                             } else {
-                                displayApprovedDriver(toShow);
+                                const approvedCard = document.getElementById('approvedDriverCard');
+                                if(!approvedCard || !approvedCard.innerHTML.trim()) displayApprovedDriver(toShow);
                             }
                         }
                 }catch(e){ /* ignore polling errors */ }
@@ -1484,6 +1488,8 @@
             });
             
             const resultsContainer = document.getElementById('driversList');
+            // clear any approved-driver card so we don't show duplicate content
+            try{ const approvedCard = document.getElementById('approvedDriverCard'); if(approvedCard) approvedCard.innerHTML = ''; }catch(e){}
             resultsContainer.innerHTML = '';
             
             if (drivers.length === 0) {
@@ -1605,9 +1611,13 @@
                                     }catch(e){}
 
                                     if(full && full.paymentStatus === 'paid'){
-                                        try{ searchDrivers(); }catch(e){ displayApprovedDriver(toShow); }
+                                        try{ searchDrivers(); }catch(e){ 
+                                            const approvedCard = document.getElementById('approvedDriverCard');
+                                            if(!approvedCard || !approvedCard.innerHTML.trim()) displayApprovedDriver(toShow);
+                                        }
                                     } else {
-                                        displayApprovedDriver(toShow);
+                                        const approvedCard = document.getElementById('approvedDriverCard');
+                                        if(!approvedCard || !approvedCard.innerHTML.trim()) displayApprovedDriver(toShow);
                                     }
                                 }catch(err){ console.error('Error handling approved driver from storage', err); displayApprovedDriver(approved); }
                             })();
@@ -1900,7 +1910,20 @@
         }
 
         // Initialize approved driver UI and listen for storage events
-        try{ renderApprovedDriverCard(); window.addEventListener('storage', (ev)=>{ if(ev.key === 'connectFreteLastApprovedDriver') renderApprovedDriverCard(); }); }catch(e){}
+        try{
+            // render once at startup
+            renderApprovedDriverCard();
+            // debounce storage events to avoid double renders across quick changes
+            let _approvedRenderTimer = null;
+            const _onApprovedStorage = (ev)=>{
+                if(ev.key !== 'connectFreteLastApprovedDriver') return;
+                if(_approvedRenderTimer) clearTimeout(_approvedRenderTimer);
+                _approvedRenderTimer = setTimeout(()=>{ renderApprovedDriverCard(); _approvedRenderTimer = null; }, 120);
+            };
+            // ensure we don't add multiple identical listeners
+            window.removeEventListener('storage', _onApprovedStorage);
+            window.addEventListener('storage', _onApprovedStorage);
+        }catch(e){}
 
         // Small helper to add a timeout to promises to avoid indefinite hangs
         function withTimeout(promise, ms = 8000, label = ''){
