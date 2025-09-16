@@ -1773,28 +1773,28 @@
         async function toggleDriverStatus(driverId) {
             console.log('toggleDriverStatus called for id=', driverId, 'window.ServerDB present=', !!window.ServerDB, 'typeof updateDriver=', window.ServerDB && typeof window.ServerDB.updateDriver);
             let drivers = DB.getDrivers();
-            let driver = drivers.find(d => d.id === driverId);
+            let driver = drivers.find(d => String(d.id) === String(driverId));
 
             // If the driver is missing locally, attempt to fetch from server (if available)
             if (!driver) {
                 console.warn('Driver not found locally for id=', driverId, '— attempting to fetch from server');
                 try{
                     if(window.ServerDB && typeof window.ServerDB.getDrivers === 'function'){
-                        const remoteDrivers = await window.ServerDB.getDrivers();
+                        const remoteDrivers = await withTimeout(window.ServerDB.getDrivers(), 8000, 'ServerDB.getDrivers');
                         if(Array.isArray(remoteDrivers) && remoteDrivers.length){
                             localStorage.setItem('connectFreteDrivers', JSON.stringify(remoteDrivers));
                             drivers = remoteDrivers;
-                            driver = drivers.find(d => d.id === driverId);
+                            driver = drivers.find(d => String(d.id) === String(driverId));
                         }
                     } else {
                         // fallback to direct fetch
-                        const resp = await fetch('/api/drivers');
+                        const resp = await withTimeout(fetch('/api/drivers'), 8000, 'GET /api/drivers');
                         if(resp.ok){
                             const remoteDrivers = await resp.json();
                             if(Array.isArray(remoteDrivers) && remoteDrivers.length){
                                 localStorage.setItem('connectFreteDrivers', JSON.stringify(remoteDrivers));
                                 drivers = remoteDrivers;
-                                driver = drivers.find(d => d.id === driverId);
+                                driver = drivers.find(d => String(d.id) === String(driverId));
                             }
                         }
                     }
@@ -1818,23 +1818,23 @@
                 if(window.ServerDB && typeof window.ServerDB.updateDriver === 'function'){
                     try{
                         // ensure server receives id and payload and await confirmation
-                        const resp = await window.ServerDB.updateDriver(driverId, { paymentStatus: newStatus });
+                        const resp = await withTimeout(window.ServerDB.updateDriver(driverId, { paymentStatus: newStatus }), 8000, 'ServerDB.updateDriver');
                         // optional: check resp.ok or returned payload
                         console.log('ServerDB.updateDriver response:', resp);
                     }catch(e){
                         console.error('ServerDB.updateDriver failed, falling back to fetch', e);
                         // fallback to direct fetch
-                        const resp = await fetch('/api/drivers?id='+encodeURIComponent(driverId), {
+                        const resp = await withTimeout(fetch('/api/drivers?id='+encodeURIComponent(driverId), {
                             method: 'PUT', headers: {'content-type':'application/json'}, body: JSON.stringify({ id: driverId, paymentStatus: newStatus })
-                        });
+                        }), 8000, 'PUT /api/drivers');
                         if(!resp.ok) throw new Error('server update failed');
                     }
                 } else {
                     // fallback: try calling the API directly
                     try{
-                        const resp = await fetch('/api/drivers?id='+encodeURIComponent(driverId), {
+                        const resp = await withTimeout(fetch('/api/drivers?id='+encodeURIComponent(driverId), {
                             method: 'PUT', headers: {'content-type':'application/json'}, body: JSON.stringify({ id: driverId, paymentStatus: newStatus })
-                        });
+                        }), 8000, 'PUT /api/drivers');
                         if(!resp.ok) throw new Error('server update failed');
                     }catch(e){ /* ignore and fallback to local update */ }
                 }
