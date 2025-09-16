@@ -842,7 +842,25 @@
                 };
             }
     }catch(e){}
-
+        try{
+            if(DB.deleteDriver){
+                const origDeleteDriver = DB.deleteDriver.bind(DB);
+                DB.deleteDriver = function(id){
+                    const res = origDeleteDriver(id);
+                    try{
+                        const approvedRaw = localStorage.getItem('connectFreteLastApprovedDriver');
+                        if(approvedRaw){
+                            const approved = JSON.parse(approvedRaw);
+                            if(String(approved.id) === String(id)){
+                                localStorage.removeItem('connectFreteLastApprovedDriver');
+                                try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(null).catch(()=>{}); } }catch(e){}
+                            }
+                        }
+                    }catch(e){}
+                    return res;
+                };
+            }
+        }catch(e){}
         // Driver session helpers (persist login between pages)
         function setDriverSession(driver) {
             if (!driver || !driver.id) return;
