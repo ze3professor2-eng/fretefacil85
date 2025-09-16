@@ -1764,8 +1764,11 @@
         }
 
         async function toggleDriverStatus(driverId) {
+            console.log('toggleDriverStatus called for id=', driverId, 'window.ServerDB present=', !!window.ServerDB, 'typeof updateDriver=', window.ServerDB && typeof window.ServerDB.updateDriver);
             const drivers = DB.getDrivers();
             const driver = drivers.find(d => d.id === driverId);
+
+            console.log('toggleDriverStatus resolved driver=', driver);
 
             if (!driver) return;
 
