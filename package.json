@@ -1,0 +1,22 @@
+{
+  "name": "fretefacil85",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Connect Frete - site with optional local server and Vercel serverless API",
+  "main": "server.js",
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "migrate": "node db/migrate.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.0",
+    "bcryptjs": "^2.4.3",
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5"
+  }
+}

@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <base target="_self">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Frete - Conectando Motoristas e Clientes</title>
+    <meta name="description" content="Plataforma para conexão entre clientes que precisam de serviços de mudança, frete ou vans e motoristas cadastrados">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- jsPDF and autoTable for PDF reports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#1e40af",
+                        secondary: "#3b82f6",
+                        accent: "#dc2626",
+                        dark: {
+                            900: "#0f172a",
+                            800: "#1e293b",
+                            700: "#334155",
+                            600: "#475569"
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="/server-db-shim.js"></script>
+    <script>
+        // If ServerDB is available, we'll try to sync settings on load. The rest of the file keeps existing localStorage behaviour as a fallback.
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
+        }
+        .truck-bg {
+            background-size: cover;
+            background-position: center;
+            opacity: 0.5;
+        }
+        .glass-effect {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg text-white font-sans">
+    <!-- Navigation -->
+    <nav class="glass-effect fixed w-full z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <img src="fretefacil.png" alt="fretefácil" class="h-8 w-auto" />
+                </div>
+                
+                <div class="hidden md:flex space-x-6">
+                    <a href="#home" class="hover:text-secondary transition-colors">Início</a>
+                    <a href="#como-funciona" class="hover:text-secondary transition-colors">Como Funciona</a>
+                    <a href="#servicos" class="hover:text-secondary transition-colors">Serviços</a>
+                    <a href="#contato" class="hover:text-secondary transition-colors">Contato</a>
+                </div>
+
+                <div class="flex space-x-4">
+                    <button onclick="showLoginModal()" class="bg-secondary hover:bg-primary px-4 py-2 rounded-lg transition-colors">
+                        Área do Motorista
+                    </button>
+                    <button onclick="showAdminLogin()" class="bg-accent hover:bg-red-700 px-4 py-2 rounded-lg transition-colors">
+                        Admin
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="relative min-h-screen flex items-center">
+        <div id="mainBackground" class="truck-bg absolute inset-0"></div>
+        <div class="container mx-auto px-4 py-20 relative z-10">
+            <div class="max-w-4xl mx-auto text-center">
+                <h1 class="text-5xl md:text-6xl font-bold mb-6">
+                    Conectamos você aos melhores 
+                    <span class="text-secondary">motoristas</span> de frete
+                </h1>
+                <p class="text-xl text-gray-300 mb-8">
+                    Encontre caminhões de mudança, fretes ou vans perto de você e converse diretamente pelo WhatsApp
+                </p>
+                
+                <!-- Search Form -->
+                <div class="glass-effect rounded-2xl p-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <select id="vehicleType" class="bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                            <option value="">Tipo de Veículo</option>
+                            <option value="mudanca">Caminhão de Mudança</option>
+                            <option value="frete">Caminhão de Frete</option>
+                            <option value="van">Van</option>
+                        </select>
+                        
+                        <input type="text" id="locationInput" placeholder="Localização atual" class="bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                        
+                        <input type="text" id="destinationInput" placeholder="Destino (opcional)" class="bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                        
+                        <button onclick="searchDrivers()" class="bg-secondary hover:bg-primary rounded-lg px-6 py-3 font-semibold transition-colors">
+                            <i class="fas fa-search mr-2"></i>Buscar
+                        </button>
+                    </div>
+                </div>
+
+                <div id="searchResults" class="glass-effect rounded-2xl p-6 mb-8 hidden">
+                    <h3 class="text-xl font-semibold mb-4">Motoristas Encontrados</h3>
+                    <div id="driversList" class="space-y-4"></div>
+                </div>
+
+                <div class="flex flex-wrap justify-center gap-4">
+                    <div class="flex items-center bg-dark-800 px-4 py-2 rounded-lg">
+                        <i class="fas fa-whatsapp text-green-400 mr-2"></i>
+                        <span>Chat direto pelo WhatsApp</span>
+                    </div>
+                    <div class="flex items-center bg-dark-800 px-4 py-2 rounded-lg">
+                        <i class="fas fa-map-marker-alt text-red-400 mr-2"></i>
+                        <span>Localização em tempo real</span>
+                    </div>
+                    <div class="flex items-center bg-dark-800 px-4 py-2 rounded-lg">
+                        <i class="fas fa-shield-alt text-blue-400 mr-2"></i>
+                        <span>Motoristas verificados</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="servicos" class="py-20">
+        <div class="container mx-auto px-4">
+            <h2 class="text-4xl font-bold text-center mb-12">Nossos Serviços</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="glass-effect rounded-2xl p-6 text-center">
+                    <div class="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-truck-loading text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3">Mudanças</h3>
+                    <p class="text-gray-300">Encontre caminhões especializados em mudanças residenciais e comerciais</p>
+                </div>
+                
+                <div class="glass-effect rounded-2xl p-6 text-center">
+                    <div class="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-pallet text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3">Fretes</h3>
+                    <p class="text-gray-300">Transporte de cargas e mercadorias com segurança e agilidade</p>
+                </div>
+                
+                <div class="glass-effect rounded-2xl p-6 text-center">
+                    <div class="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-shuttle-van text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3">Vans</h3>
+                    <p class="text-gray-300">Transporte de passageiros e cargas menores com conforto</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it Works -->
+    <section id="como-funciona" class="py-20 bg-dark-800">
+        <div class="container mx-auto px-4">
+            <h2 class="text-4xl font-bold text-center mb-12">Como Funciona</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div class="mb-8">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mr-4">
+                                <span class="text-xl font-bold">1</span>
+                            </div>
+                            <h3 class="text-xl font-semibold">Busque por motoristas</h3>
+                        </div>
+                        <p class="text-gray-300 ml-16">Informe o tipo de veículo necessário e sua localização</p>
+                    </div>
+                    
+                    <div class="mb-8">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mr-4">
+                                <span class="text-xl font-bold">2</span>
+                            </div>
+                            <h3 class="text-xl font-semibold">Converse diretamente</h3>
+                        </div>
+                        <p class="text-gray-300 ml-16">Entre em contato via WhatsApp sem custos adicionais</p>
+                    </div>
+                    
+                    <div>
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mr-4">
+                                <span class="text-xl font-bold">3</span>
+                            </div>
+                            <h3 class="text-xl font-semibold">Feche o negócio</h3>
+                        </div>
+                        <p class="text-gray-300 ml-16">Combine valores e detalhes diretamente com o motorista</p>
+                    </div>
+                </div>
+                
+                <div class="glass-effect rounded-2xl p-6">
+                    <div id="liveMap" class="w-full rounded-lg overflow-hidden bg-dark-800 relative" style="height:400px;">
+                        <div id="mapControls" class="absolute top-3 left-3 z-20 space-x-2">
+                            <button id="stopLiveMapBtn" onclick="stopLiveMap()" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm hidden">
+                                Parar mapa
+                            </button>
+                        </div>
+                        <div id="mapPlaceholder" class="w-full h-full flex items-center justify-center text-gray-300">
+                            Visualização de mapa em tempo real está desativada.
+                        </div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <p class="text-gray-300">Visualize motoristas disponíveis em sua região</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Driver Registration CTA -->
+    <section class="py-20">
+        <div class="container mx-auto px-4 text-center">
+            <h2 class="text-4xl font-bold mb-6">Seja um motorista parceiro</h2>
+            <p class="text-xl text-gray-300 mb-8">Cadastre-se por apenas <span id="subscriptionFee" class="font-bold text-secondary">R$ 99,90</span></p>
+            <button onclick="window.location.href='motorista.html?new=1'" class="bg-secondary hover:bg-primary px-8 py-4 rounded-lg text-lg font-semibold transition-colors">
+                Fazer Cadastro
+            </button>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer id="contato" class="bg-dark-900 py-12">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <img src="fretefacil.png" alt="fretefácil" class="h-8 w-auto" />
+                    </div>
+                    <p class="text-gray-400">Conectando motoristas e clientes com eficiência e segurança.</p>
+                </div>
+                
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Links Rápidos</h4>
+                    <div class="space-y-3">
+                        <a href="#home" class="block text-gray-300 hover:text-white">Início</a>
+                        <a href="#como-funciona" class="block text-gray-300 hover:text-white">Como Funciona</a>
+                        <a href="#servicos" class="block text-gray-300 hover:text-white">Serviços</a>
+                        <a href="#contato" class="block text-gray-300 hover:text-white">Contato</a>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Contato</h4>
+                    <div class="mb-6">
+                        <h3 class="text-xl font-semibold mb-4">Contato</h3>
+                        <p class="text-gray-300">Se precisar falar conosco, use os canais abaixo.</p>
+                        <div class="mt-3">
+                            <p class="text-gray-300">E-mail: <span id="footerEmail">contato@connectfrete.com</span></p>
+                            <p class="text-gray-300">Telefone: <span id="footerPhone">(11) 99999-9999</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Driver Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4">
+        <div class="glass-effect rounded-2xl p-8 max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Login Motorista</h3>
+                <button onclick="hideLoginModal()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">E-mail</label>
+                    <input type="email" id="loginEmail" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-gray-300 mb-2">Senha</label>
+                    <input type="password" id="loginPassword" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                </div>
+                <div id="loginError" class="text-red-400 text-sm mb-4 hidden" role="alert"></div>
+                
+                <div class="mb-4">
+                    <button type="submit" class="w-full bg-secondary hover:bg-primary py-3 rounded-lg font-semibold transition-colors">
+                        Entrar
+                    </button>
+                </div>
+                
+                <div class="text-center">
+                    <a href="#" onclick="showForgotPassword()" class="text-secondary hover:underline">Esqueci minha senha</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Driver Registration Modal -->
+    <div id="registerModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4 overflow-y-auto">
+        <div class="glass-effect rounded-2xl p-8 max-w-2xl w-full my-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Cadastro de Motorista</h3>
+                <button onclick="hideRegisterModal()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="registerForm">
+                <div id="registerMsg" class="text-sm mb-3 hidden"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-300 mb-2">Nome Completo</label>
+                        <input type="text" id="driverName" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-300 mb-2">CPF</label>
+                        <input type="text" id="driverCpf" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-300 mb-2">E-mail</label>
+                        <input type="email" id="driverEmail" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-300 mb-2">Telefone/WhatsApp</label>
+                        <input type="tel" id="driverPhone" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-300 mb-2">Cidade</label>
+                        <input type="text" id="driverCity" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-300 mb-2">Estado</label>
+                        <input type="text" id="driverState" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-300 mb-2">Senha</label>
+                        <input type="password" id="driverPassword" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-300 mb-2">Confirmar Senha</label>
+                        <input type="password" id="driverConfirmPassword" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-gray-300 mb-2">Tipo de Veículo</label>
+                        <select id="vehicleTypeSelect" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                            <option value="">Selecione o tipo</option>
+                            <option value="mudanca">Caminhão de Mudança</option>
+                            <option value="frete">Caminhão de Frete</option>
+                            <option value="van">Van</option>
+                        </select>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-gray-300 mb-2">Placa do Veículo</label>
+                        <input type="text" id="vehiclePlate" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-gray-300 mb-2">Fotos do Veículo</label>
+                        <p class="text-gray-300">Envie até 3 fotos do seu veículo após finalizar o cadastro na sua área do motorista.</p>
+                    </div>
+                    
+                    <div class="md:col-span-2 mt-4">
+                        <div class="flex gap-3">
+                            <button id="finalizeRegisterBtn" type="submit" class="flex-1 bg-secondary hover:bg-primary py-3 rounded-lg font-semibold transition-colors">
+                                    Finalizar Cadastro
+                                </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4">
+        <div class="glass-effect rounded-2xl p-8 max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Área Administrativa</h3>
+                <button onclick="hideAdminLogin()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="adminLoginForm">
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">Usuário Admin</label>
+                    <input type="text" id="adminUsername" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-gray-300 mb-2">Senha</label>
+                    <input type="password" id="adminPassword" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                </div>
+                
+                <div class="mb-4">
+                    <button type="submit" class="w-full bg-accent hover:bg-red-700 py-3 rounded-lg font-semibold transition-colors">
+                        Acessar Painel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4 overflow-y-auto">
+    <div class="glass-effect rounded-2xl p-8 max-w-6xl w-full my-4 max-h-[85vh] overflow-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Painel Administrativo</h3>
+                <div class="flex items-center gap-3">
+                    <button onclick="(function(){ const el=document.getElementById('inlineAdminUser'); if(el) el.focus(); })()" class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm">Alterar Credenciais</button>
+                    <button onclick="forceAdminLogout(true)" class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">Forçar logout</button>
+                    <button onclick="hideAdminPanel()" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="glass-effect rounded-xl p-4">
+                    <h4 class="text-lg font-semibold mb-3">Resumo do Sistema</h4>
+                    <div class="space-y-3">
+                        <p class="text-gray-300">Este painel mostra informações administrativas. Ajuste aqui configurações exibidas no site.</p>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Taxa (R$)</label>
+                            <input id="subscriptionFeeInput" type="number" step="0.01" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="99.90">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Tipo de cobrança</label>
+                            <select id="subscriptionTypeInput" class="w-full p-2 rounded bg-gray-800 text-white">
+                                <option value="one-time">Taxa Única</option>
+                                <option value="monthly">Mensal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">E-mail de contato (rodapé)</label>
+                            <input id="contactEmailInput" type="email" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="contato@exemplo.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Telefone de contato (rodapé)</label>
+                            <input id="contactPhoneInput" type="text" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="(11) 99999-9999">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">URL da imagem de fundo</label>
+                            <input id="backgroundImageInput" type="url" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="https://...">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Chave PIX (exibida ao motorista)</label>
+                            <input id="pixKeyAdminInput" type="text" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="chave@pix">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Nome (para exibir no PIX)</label>
+                            <input id="pixNameAdminInput" type="text" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="Nome para exibição">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Telefone (para exibir no PIX)</label>
+                            <input id="pixPhoneAdminInput" type="text" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="(11) 99999-9999">
+                        </div>
+                        <div class="mt-2">
+                            <button onclick="updateSiteSettings()" class="w-full bg-secondary hover:bg-primary py-2 rounded-lg">Salvar Configurações do Site</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-effect rounded-xl p-4">
+                    <h4 class="text-lg font-semibold mb-3">Alterar Credenciais (rápido)</h4>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Usuário atual</label>
+                            <input id="inlineAdminUser" type="text" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="Usuário atual">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Senha atual</label>
+                            <input id="inlineAdminCurrentPass" type="password" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="Senha atual">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Novo usuário</label>
+                            <input id="inlineAdminNewUser" type="text" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="Novo usuário">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Nova senha</label>
+                            <input id="inlineAdminNewPass" type="password" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="Nova senha">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Confirmar nova senha</label>
+                            <input id="inlineAdminConfirmPass" type="password" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="Confirmar nova senha">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="submitAdminCredsInline()" class="bg-secondary hover:bg-primary px-4 py-2 rounded">Salvar</button>
+                            <button onclick="(function(){ document.getElementById('inlineAdminUser').value=''; document.getElementById('inlineAdminCurrentPass').value=''; document.getElementById('inlineAdminNewUser').value=''; document.getElementById('inlineAdminNewPass').value=''; document.getElementById('inlineAdminConfirmPass').value=''; })()" class="bg-gray-700 px-4 py-2 rounded">Limpar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-effect rounded-xl p-4">
+                    <h4 class="text-lg font-semibold mb-3">Gerenciar Pagamentos</h4>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-300">Total de Motoristas:</span>
+                            <span class="font-semibold" id="totalDrivers">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-300">Pagamentos do Dia:</span>
+                            <span class="font-semibold text-green-400" id="dailyPayments">R$ 0,00</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-300">Pagamentos Pendentes:</span>
+                            <span class="font-semibold text-red-400" id="pendingPayments">0</span>
+                        </div>
+                        <button onclick="generateDailyReport()" class="w-full bg-secondary hover:bg-primary py-2 rounded-lg font-semibold transition-colors">
+                            Gerar Relatório Diário
+                        </button>
+                        <button onclick="exportPaidDriversPDF()" class="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-semibold transition-colors">
+                            Exportar Relatório Completo (PDF)
+                        </button>
+                        <button onclick="clearTodayPayments()" class="w-full mt-2 bg-red-600 hover:bg-red-700 py-2 rounded-lg font-semibold transition-colors">
+                            Limpar recebimentos do dia
+                        </button>
+                        <div id="paymentsLog" class="mt-4">
+                            <h5 class="text-sm font-semibold mb-2">Logs de pagamentos</h5>
+                            <div class="flex items-center justify-between mb-2">
+                                <small class="text-gray-400">Últimos logs de pagamentos</small>
+                                <button onclick="clearPaymentLogs()" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1 rounded">Apagar Logs</button>
+                            </div>
+                            <ul id="paymentsLogList" class="list-disc pl-5 text-gray-300 text-sm">
+                                <!-- logs serão inseridos aqui -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mensagens de contato removidas -->
+            </div>
+
+            <div class="glass-effect rounded-xl p-4">
+                <h4 class="text-lg font-semibold mb-3">Motoristas Cadastrados</h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-600">
+                                <th class="text-left py-2">Nome</th>
+                                <th class="text-left py-2">Telefone</th>
+                                <th class="text-left py-2">Cidade</th>
+                                <th class="text-left py-2">Estado</th>
+                                <th class="text-left py-2">Veículo</th>
+                                <th class="text-left py-2">Status Pagamento</th>
+                                <th class="text-left py-2">Método Pagamento</th>
+                                <th class="text-left py-2">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="driversTable">
+                            <!-- Drivers will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Credentials Modal removed - using inline form in admin panel -->
+
+    <!-- Forgot Password Modal -->
+    <div id="forgotPasswordModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4">
+        <div class="glass-effect rounded-2xl p-8 max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Recuperar Senha</h3>
+                <button onclick="hideForgotPassword()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="forgotPasswordForm">
+                <div class="mb-4">
+                    <p class="text-gray-300 mb-4">Informe seu e-mail para receber instruções de recuperação de senha</p>
+                    <label class="block text-gray-300 mb-2">E-mail</label>
+                    <input type="email" id="recoveryEmail" class="w-full bg-dark-800 border border-gray-600 rounded-lg px-4 py-3 text-white" required>
+                </div>
+                <div id="forgotMsg" class="text-sm mb-3 hidden"></div>
+                <div class="mb-4">
+                    <button type="submit" class="w-full bg-secondary hover:bg-primary py-3 rounded-lg font-semibold transition-colors">
+                        Enviar Instruções
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4">
+        <div class="glass-effect rounded-2xl p-8 max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Pagamento da Taxa</h3>
+                <button onclick="hidePaymentModal()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="mb-6">
+                <p class="text-gray-300 mb-4">Valor: <span class="font-semibold text-secondary" id="paymentAmount">R$ 99,90</span></p>
+                
+                <div class="space-y-3">
+                    <button onclick="processPayment('pix')" class="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center">
+                        <i class="fab fa-pix mr-2"></i> Pagar com PIX
+                    </button>
+                    
+                    <button onclick="processPayment('credit')" class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center">
+                        <i class="fas fa-credit-card mr-2"></i> Cartão de Crédito
+                    </button>
+                    
+                    <button onclick="processPayment('debit')" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center">
+                        <i class="fas fa-credit-card mr-2"></i> Cartão de Débito
+                    </button>
+                </div>
+            </div>
+
+                <!-- Contact view modal removed -->
+        </div>
+    </div>
+
+    <script>
+        // Database simulation using localStorage
+        const DB = {
+            init: function() {
+                if (!localStorage.getItem('connectFreteSettings')) {
+                    const defaultSettings = {
+                        subscriptionFee: 99.90,
+                        // 'one-time' ou 'monthly'
+                        subscriptionType: 'one-time',
+                        contactEmail: "contato@connectfrete.com",
+                        contactPhone: "(11) 99999-9999",
+                        backgroundImage: "https://picsum.photos/1200/800?random=1&blur=2",
+                        bankAccount: '',
+                        pixKey: '',
+                        pixDisplayName: 'Connect Frete',
+                        pixDisplayPhone: '(11) 99999-9999',
+                        adminCredentials: {
+                            username: "admin",
+                            password: "admin123"
+                        }
+                    };
+                    localStorage.setItem('connectFreteSettings', JSON.stringify(defaultSettings));
+                }
+
+                if (!localStorage.getItem('connectFreteDrivers')) {
+                    localStorage.setItem('connectFreteDrivers', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('connectFretePayments')) {
+                    localStorage.setItem('connectFretePayments', JSON.stringify([]));
+                }
+            },
+
+            getSettings: function() {
+                return JSON.parse(localStorage.getItem('connectFreteSettings'));
+            },
+
+            updateSettings: function(newSettings) {
+                localStorage.setItem('connectFreteSettings', JSON.stringify(newSettings));
+            },
+
+            getDrivers: function() {
+                return JSON.parse(localStorage.getItem('connectFreteDrivers'));
+            },
+
+            addDriver: function(driver) {
+                const drivers = this.getDrivers();
+                drivers.push(driver);
+                localStorage.setItem('connectFreteDrivers', JSON.stringify(drivers));
+            },
+
+            updateDriver: function(id, updates) {
+                const drivers = this.getDrivers();
+                const index = drivers.findIndex(driver => driver.id === id);
+                if (index !== -1) {
+                    drivers[index] = { ...drivers[index], ...updates };
+                    localStorage.setItem('connectFreteDrivers', JSON.stringify(drivers));
+                }
+            },
+
+            getPayments: function() {
+                return JSON.parse(localStorage.getItem('connectFretePayments'));
+            },
+
+            addPayment: function(payment) {
+                const payments = this.getPayments();
+                payments.push(payment);
+                localStorage.setItem('connectFretePayments', JSON.stringify(payments));
+            }
+        };
+
+        // Initialize database
+        DB.init();
+
+        // Try to load remote settings into local storage (one-way sync) if ServerDB is available
+        (async function trySyncFromServer(){
+            if(window.ServerDB && typeof window.ServerDB.getSettings === 'function'){
+                try{
+                    const remote = await window.ServerDB.getSettings();
+                    if(remote){
+                        // Write remote settings to localStorage to keep UI consistent
+                        localStorage.setItem('connectFreteSettings', JSON.stringify(remote));
+                        // Also replace DB methods to call server when saving
+                        // We'll keep DB.getDrivers/addDriver/updateDriver/getPayments/addPayment proxied where used (admin panel will call loadAdminPanelData which uses DB.getDrivers/getPayments)
+                    }
+                }catch(e){ /* ignore - keep localStorage */ }
+            }
+        })();
+
+        // Adapter: if ServerDB is available, wrap DB methods to proxy to server but keep localStorage fallback.
+        (function attachServerAdapter(){
+            if(!window.ServerDB) return;
+            // override add/get/update methods to prefer server but update local cache for synchronous reads
+            const originalGetDrivers = DB.getDrivers.bind(DB);
+            const originalGetPayments = DB.getPayments.bind(DB);
+            const originalGetSettings = DB.getSettings.bind(DB);
+
+            DB.getSettings = function(){
+                try{
+                    // prefer server but keep local copy for synchronous callers
+                    window.ServerDB.getSettings().then(remote => { if(remote) localStorage.setItem('connectFreteSettings', JSON.stringify(remote)); }).catch(()=>{});
+                }catch(e){}
+                return originalGetSettings();
+            };
+
+            DB.getDrivers = function(){
+                // fire-and-forget update from server to local cache
+                try{ window.ServerDB.getDrivers().then(ds => { if(Array.isArray(ds)) localStorage.setItem('connectFreteDrivers', JSON.stringify(ds)); }).catch(()=>{}); }catch(e){}
+                return originalGetDrivers();
+            };
+
+            DB.getPayments = function(){
+                try{ window.ServerDB.getPayments().then(ps => { if(Array.isArray(ps)) localStorage.setItem('connectFretePayments', JSON.stringify(ps)); }).catch(()=>{}); }catch(e){}
+                return originalGetPayments();
+            };
+
+            // Writes should attempt server first, then fallback to local changes
+            const wrapWrite = (fnName, origFn, serverFnName) => {
+                return function(){
+                    const args = Array.from(arguments);
+                    try{
+                        const payload = args[0];
+                        // call server async
+                        (async ()=>{
+                            try{ await window.ServerDB[serverFnName](payload); }catch(e){ /* ignore - fallback will run */ }
+                        })();
+                    }catch(e){}
+                    // always perform local write to keep UI consistent
+                    return origFn.apply(DB, args);
+                };
+            };
+
+            if(DB.addDriver) DB.addDriver = wrapWrite('addDriver', DB.addDriver, 'addDriver');
+            if(DB.addPayment) DB.addPayment = wrapWrite('addPayment', DB.addPayment, 'addPayment');
+            if(DB.updateDriver) DB.updateDriver = wrapWrite('updateDriver', DB.updateDriver, 'updateDriver');
+            // deleteDriver may not exist originally; provide a safe wrapped implementation
+            if(typeof DB.deleteDriver !== 'function'){
+                DB.deleteDriver = function(id){
+                    const drivers = this.getDrivers();
+                    const filtered = drivers.filter(d => d.id !== id);
+                    localStorage.setItem('connectFreteDrivers', JSON.stringify(filtered));
+                };
+            }
+            // wrap deleteDriver to call server when available
+            if(DB.deleteDriver) {
+                const origDelete = DB.deleteDriver.bind(DB);
+                DB.deleteDriver = function(id){
+                    try{
+                        (async ()=>{ try{ await window.ServerDB.deleteDriver(id); }catch(e){} })();
+                    }catch(e){}
+                    return origDelete(id);
+                };
+            }
+            // wrap updateSettings to call server when available
+            if(DB.updateSettings){
+                const origUpdateSettings = DB.updateSettings.bind(DB);
+                DB.updateSettings = function(newSettings){
+                    try{ (async ()=>{ try{ await window.ServerDB.updateSettings(newSettings); }catch(e){} })(); }catch(e){}
+                    return origUpdateSettings(newSettings);
+                };
+            }
+        })();
+
+        // Driver session helpers (persist login between pages)
+        function setDriverSession(driver) {
+            if (!driver || !driver.id) return;
+            const sess = { id: driver.id, started: new Date().toISOString() };
+            localStorage.setItem('connectFreteUserSession', JSON.stringify(sess));
+            currentUser = driver;
+        }
+
+        function clearDriverSession() {
+            localStorage.removeItem('connectFreteUserSession');
+            currentUser = null;
+        }
+
+        function getDriverSession() {
+            const raw = localStorage.getItem('connectFreteUserSession');
+            return raw ? JSON.parse(raw) : null;
+        }
+
+        // Attempt to restore driver session on load
+        (function restoreDriverSession(){
+            try{
+                const s = getDriverSession();
+                if(s && s.id){
+                    const drivers = DB.getDrivers();
+                    const drv = drivers.find(d => String(d.id) === String(s.id));
+                    if(drv){ currentUser = drv; }
+                }
+            }catch(e){ console.error('Erro restaurando sessão do motorista', e); }
+        })();
+
+        // Current user state
+        let currentUser = null;
+        let currentAdmin = null;
+
+        // Update nav to reflect driver session
+        function renderDriverNavState(){
+            try{
+                const session = getDriverSession();
+                const navButtons = document.querySelectorAll('nav .flex.space-x-4');
+                // find the Área do Motorista button (first in that group)
+                const areaBtn = document.querySelector('nav button[onclick="showLoginModal()"]');
+                if(areaBtn){
+                    // keep the visible label fixed to preserve layout and user familiarity
+                    areaBtn.textContent = 'Área do Motorista';
+                    if(session && session.id){
+                        // get driver name to set as a tooltip/title but keep button opening the login modal
+                        const drivers = DB.getDrivers();
+                        const drv = drivers.find(d=> String(d.id) === String(session.id));
+                        if(drv){
+                            areaBtn.title = `Olá, ${drv.name.split(' ')[0]}`;
+                        } else {
+                            areaBtn.title = 'Minha Conta';
+                        }
+                        // always open the login modal; modal will detect session and offer actions
+                        areaBtn.onclick = showLoginModal;
+                    } else {
+                        // reset to default behavior
+                        areaBtn.title = '';
+                        areaBtn.onclick = showLoginModal;
+                    }
+                }
+            }catch(e){ console.error('Erro atualizando nav do motorista', e); }
+        }
+
+        function driverLogout(){
+            clearDriverSession();
+            renderDriverNavState();
+            alert('Você foi desconectado');
+        }
+
+        // Modal control functions
+        function showLoginModal() {
+            const session = getDriverSession();
+            // Prefill login email from session if present
+            try{
+                const loginEl = document.getElementById('loginEmail');
+                if(session && session.id){
+                    const drivers = DB.getDrivers();
+                    const drv = drivers.find(d => String(d.id) === String(session.id));
+                    if(drv && loginEl){ loginEl.value = drv.email || ''; }
+                    // show a small informational text inside the modal if needed
+                    const loginError = document.getElementById('loginError');
+                    if(loginError){ loginError.textContent = 'Sessão ativa encontrada — confirme sua senha ou saia para alternar conta.'; loginError.classList.remove('hidden'); }
+                } else if(loginEl){
+                    // clear previous error hints
+                    const loginError = document.getElementById('loginError');
+                    if(loginError) loginError.classList.add('hidden');
+                }
+            }catch(e){ }
+
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('loginModal').classList.add('flex');
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('loginModal').classList.remove('flex');
+        }
+
+        function showRegisterModal() {
+            const settings = DB.getSettings();
+            document.getElementById('currentFee').textContent = settings.subscriptionFee.toFixed(2);
+            document.getElementById('registerModal').classList.remove('hidden');
+            document.getElementById('registerModal').classList.add('flex');
+        }
+
+        function hideRegisterModal() {
+            document.getElementById('registerModal').classList.add('hidden');
+            document.getElementById('registerModal').classList.remove('flex');
+        }
+
+        function showAdminLogin() {
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+            document.getElementById('adminLoginModal').classList.add('flex');
+        }
+
+        function hideAdminLogin() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+            document.getElementById('adminLoginModal').classList.remove('flex');
+        }
+
+        function showAdminPanel() {
+            loadAdminPanelData();
+            document.getElementById('adminPanel').classList.remove('hidden');
+            document.getElementById('adminPanel').classList.add('flex');
+        }
+
+        function hideAdminPanel() {
+            document.getElementById('adminPanel').classList.add('hidden');
+            document.getElementById('adminPanel').classList.remove('flex');
+        }
+
+        function showForgotPassword() {
+            // Prefill recovery email from the login form if possible, or from currentUser session
+            try{
+                const loginEl = document.getElementById('loginEmail');
+                const recoveryEl = document.getElementById('recoveryEmail');
+                if(recoveryEl){
+                    if(loginEl && loginEl.value){
+                        recoveryEl.value = loginEl.value;
+                    } else if(currentUser && currentUser.email){
+                        recoveryEl.value = currentUser.email;
+                    }
+                }
+            }catch(e){ /* ignore */ }
+
+            hideLoginModal();
+            document.getElementById('forgotPasswordModal').classList.remove('hidden');
+            document.getElementById('forgotPasswordModal').classList.add('flex');
+        }
+
+        function hideForgotPassword() {
+            document.getElementById('forgotPasswordModal').classList.add('hidden');
+            document.getElementById('forgotPasswordModal').classList.remove('flex');
+        }
+
+        function showPaymentModal(amount) {
+            const settings = DB.getSettings();
+            document.getElementById('paymentAmount').textContent = `R$ ${amount.toFixed(2)}`;
+
+            // Update PIX button text to include pix key if available
+            const pixBtn = document.querySelector("#paymentModal button[onclick=\"processPayment('pix')\"]");
+            if (pixBtn) {
+                const pixKey = settings.pixKey || '';
+                pixBtn.innerHTML = `<i class="fab fa-pix mr-2"></i> Pagar com PIX${pixKey ? ' - Chave: ' + pixKey : ''}`;
+            }
+
+            // Update credit/debit buttons to include bank account info if available
+            const creditBtn = document.querySelector("#paymentModal button[onclick=\"processPayment('credit')\"]");
+            const debitBtn = document.querySelector("#paymentModal button[onclick=\"processPayment('debit')\"]");
+            const bankInfo = settings.bankAccount || '';
+            if (creditBtn) creditBtn.innerHTML = `<i class="fas fa-credit-card mr-2"></i> Cartão de Crédito${bankInfo ? ' - Conta: ' + bankInfo : ''}`;
+            if (debitBtn) debitBtn.innerHTML = `<i class="fas fa-credit-card mr-2"></i> Cartão de Débito${bankInfo ? ' - Conta: ' + bankInfo : ''}`;
+
+            document.getElementById('paymentModal').classList.remove('hidden');
+            document.getElementById('paymentModal').classList.add('flex');
+        }
+
+        function hidePaymentModal() {
+            document.getElementById('paymentModal').classList.add('hidden');
+            document.getElementById('paymentModal').classList.remove('flex');
+        }
+
+        // Form handlers
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const drivers = DB.getDrivers();
+            const driver = drivers.find(d => d.email === email && d.password === password);
+
+            const loginError = document.getElementById('loginError');
+            if (driver) {
+                loginError.classList.add('hidden');
+                // persist session and redirect
+                setDriverSession(driver);
+                hideLoginModal();
+                window.location.href = `motorista.html?id=${driver.id}`;
+            } else {
+                loginError.textContent = 'E-mail ou senha incorretos';
+                loginError.classList.remove('hidden');
+            }
+        });
+
+        // Live map controls: on-demand enable/disable inside the #liveMap box
+        let _liveMapWatchId = null;
+        let _liveMapIframe = null;
+
+        function initLiveMap() {
+            const placeholder = document.getElementById('mapPlaceholder');
+            if (placeholder) placeholder.textContent = 'Visualização de mapa em tempo real está desativada.';
+        }
+
+        function startLiveMap() {
+            const enableBtn = document.getElementById('enableLiveMapBtn');
+            const stopBtn = document.getElementById('stopLiveMapBtn');
+            const container = document.getElementById('liveMap');
+            const placeholder = document.getElementById('mapPlaceholder');
+
+            if (!('geolocation' in navigator)) {
+                alert('Geolocalização não disponível neste navegador.');
+                return;
+            }
+
+            // Replace placeholder with iframe if not present
+            if (!_liveMapIframe) {
+                _liveMapIframe = document.createElement('iframe');
+                _liveMapIframe.style.width = '100%';
+                _liveMapIframe.style.height = '100%';
+                _liveMapIframe.style.border = '0';
+                _liveMapIframe.id = 'liveMapIframe';
+                // initial center (will be updated by watch)
+                _liveMapIframe.src = 'https://www.google.com/maps?q=0,0&z=15&output=embed';
+                // insert under controls
+                container.appendChild(_liveMapIframe);
+            }
+
+            if (placeholder) placeholder.classList.add('hidden');
+            if (enableBtn) enableBtn.classList.add('hidden');
+            if (stopBtn) stopBtn.classList.remove('hidden');
+
+            // Start watchPosition
+            _liveMapWatchId = navigator.geolocation.watchPosition(function(pos){
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                // update iframe to center on current position
+                if (_liveMapIframe) {
+                    _liveMapIframe.src = `https://www.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
+                }
+            }, function(err){
+                console.error('geolocation error', err);
+                if(err.code === 1) {
+                    alert('Permissão de localização negada. Ative nas configurações do navegador.');
+                    stopLiveMap();
+                } else {
+                    alert('Erro ao obter localização: ' + err.message);
+                }
+            }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
+        }
+
+        function stopLiveMap() {
+            const enableBtn = document.getElementById('enableLiveMapBtn');
+            const stopBtn = document.getElementById('stopLiveMapBtn');
+            const placeholder = document.getElementById('mapPlaceholder');
+
+            if (_liveMapWatchId !== null) {
+                navigator.geolocation.clearWatch(_liveMapWatchId);
+                _liveMapWatchId = null;
+            }
+
+            if (_liveMapIframe) {
+                try { _liveMapIframe.remove(); } catch(e){}
+                _liveMapIframe = null;
+            }
+
+            if (placeholder) { placeholder.classList.remove('hidden'); placeholder.textContent = 'Visualização de mapa em tempo real está desativada.'; }
+            if (enableBtn) enableBtn.classList.remove('hidden');
+            if (stopBtn) stopBtn.classList.add('hidden');
+        }
+
+        // Phone mask helper: formats as (XX) XXXX-XXXX or (XX) XXXXX-XXXX
+        function formatPhoneDigits(v){
+            const d = (v || '').toString().replace(/\D/g,'');
+            if(d.length > 11) d = d.slice(0,11);
+            if(d.length > 10){
+                return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7,11)}`;
+            } else if(d.length > 6){
+                return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6,10)}`;
+            } else if(d.length > 2){
+                return `(${d.slice(0,2)}) ${d.slice(2)}`;
+            } else if(d.length>0){
+                return `(${d}`;
+            }
+            return '';
+        }
+
+        function attachPhoneMask(id){
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('input', (e)=>{
+                const pos = el.selectionStart;
+                const oldLen = el.value.length;
+                el.value = formatPhoneDigits(el.value);
+                // attempt to keep cursor at end
+                const newLen = el.value.length;
+                const diff = newLen - oldLen;
+                try { el.selectionStart = el.selectionEnd = pos + diff; } catch(err){}
+            });
+            el.addEventListener('blur', ()=>{ el.value = formatPhoneDigits(el.value); });
+        }
+
+        // Attach mask to registration phone input
+        attachPhoneMask('driverPhone');
+
+        // Clear login error on input
+        document.getElementById('loginEmail').addEventListener('input', ()=>{
+            document.getElementById('loginError').classList.add('hidden');
+        });
+        document.getElementById('loginPassword').addEventListener('input', ()=>{
+            document.getElementById('loginError').classList.add('hidden');
+        });
+
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const msgEl = document.getElementById('registerMsg');
+            // use centralized builder
+            const newDriver = buildNewDriverFromForm();
+            if(!newDriver) return; // builder shows errors
+
+            DB.addDriver(newDriver);
+            // Set current user session and redirect to their profile
+            setDriverSession(newDriver);
+            hideRegisterModal();
+            // Redirect to motorista profile immediately
+            window.location.href = `motorista.html?id=${newDriver.id}`;
+        });
+
+        // Ensure finalize button triggers the form submit (defensive)
+        const finalizeBtn = document.getElementById('finalizeRegisterBtn');
+        if(finalizeBtn){
+            finalizeBtn.addEventListener('click', function(){
+                const form = document.getElementById('registerForm');
+                if(form) form.requestSubmit();
+            });
+        }
+
+        // Build and validate driver object from register form. Returns driver object or null and shows message.
+        function buildNewDriverFromForm(){
+            const msgEl = document.getElementById('registerMsg');
+            function showRegisterMsg(text, ok = false) {
+                msgEl.textContent = text;
+                msgEl.className = ok ? 'text-green-400 mb-3' : 'text-red-400 mb-3';
+                msgEl.classList.remove('hidden');
+            }
+            function clearRegisterMsg() { msgEl.classList.add('hidden'); msgEl.textContent = ''; }
+            clearRegisterMsg();
+
+            const name = document.getElementById('driverName').value.trim();
+            const cpf = document.getElementById('driverCpf').value.trim();
+            const email = document.getElementById('driverEmail').value.trim();
+            const phone = document.getElementById('driverPhone').value.trim();
+            const city = document.getElementById('driverCity').value.trim();
+            const state = document.getElementById('driverState').value.trim();
+            const password = document.getElementById('driverPassword').value;
+            const confirmPassword = document.getElementById('driverConfirmPassword').value;
+            const vehicleType = document.getElementById('vehicleTypeSelect').value;
+            const vehiclePlate = document.getElementById('vehiclePlate').value.trim();
+
+            // Basic validations
+            if (!name) { showRegisterMsg('Informe o nome completo'); return null; }
+            if (!cpf || cpf.replace(/\D/g,'').length < 11) { showRegisterMsg('CPF inválido'); return null; }
+            const emailRe = /^\S+@\S+\.\S+$/;
+            if (!emailRe.test(email)) { showRegisterMsg('E-mail inválido'); return null; }
+            if (!phone || phone.replace(/\D/g,'').length < 10) { showRegisterMsg('Telefone inválido'); return null; }
+            if (!vehicleType) { showRegisterMsg('Selecione o tipo de veículo'); return null; }
+            if (!vehiclePlate || vehiclePlate.length < 6) { showRegisterMsg('Placa do veículo inválida'); return null; }
+            if (password.length < 6) { showRegisterMsg('A senha deve ter pelo menos 6 caracteres'); return null; }
+            if (password !== confirmPassword) { showRegisterMsg('As senhas não coincidem'); return null; }
+
+            const newDriver = {
+                id: Date.now(),
+                name,
+                cpf,
+                email,
+                phone,
+                city,
+                state,
+                password,
+                vehicleType,
+                vehiclePlate,
+                photos: [],
+                paymentStatus: 'pending',
+                registrationDate: new Date().toISOString()
+            };
+
+            return newDriver;
+        }
+
+        // Note: registration flow triggers creation and redirect to perfil; payments are handled via the payment modal.
+
+        // Move to next input on Enter in register form
+        (function(){
+            const form = document.getElementById('registerForm');
+            if(!form) return;
+            const focusableSelector = 'input:not([type=hidden]):not([disabled]), select:not([disabled]), button:not([disabled])';
+            form.addEventListener('keydown', function(e){
+                if(e.key === 'Enter'){
+                    const focusables = Array.from(form.querySelectorAll(focusableSelector)).filter(el=> el.offsetParent !== null);
+                    const idx = focusables.indexOf(document.activeElement);
+                    if(idx > -1){
+                        e.preventDefault();
+                        const next = focusables[idx+1];
+                        if(next){
+                            next.focus();
+                        } else {
+                            // last element - submit
+                            form.requestSubmit();
+                        }
+                    }
+                }
+            });
+        })();
+
+        // Clear register messages on input
+        ['driverName','driverCpf','driverEmail','driverPhone','driverCity','driverState','driverPassword','driverConfirmPassword','vehicleTypeSelect','vehiclePlate']
+            .forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', ()=> {
+                    const msgEl = document.getElementById('registerMsg');
+                    if (msgEl) msgEl.classList.add('hidden');
+                });
+
+        // Poll server for approved driver (covers other browsers or if localStorage event isn't available)
+        (function(){
+            let lastSeenTs = 0;
+            async function fetchApproved(){
+                try{
+                    const r = await fetch('/api/approved-driver');
+                    if(!r.ok) return;
+                    const data = await r.json();
+                    if(!data) return;
+                    if(data.ts && data.ts > lastSeenTs){
+                            lastSeenTs = data.ts;
+                            // Try to find full driver info locally first
+                            const drivers = DB.getDrivers();
+                            let full = drivers.find(d => String(d.id) === String(data.id));
+                            // If we don't have full info (photos etc), try to fetch from server API if available
+                            if(!full){
+                                try{
+                                    const r = await fetch(`/api/drivers/${encodeURIComponent(data.id)}`);
+                                    if(r.ok){
+                                        const remoteDrv = await r.json();
+                                        if(remoteDrv && remoteDrv.id){
+                                            // update local cache so subsequent reads are fast
+                                            try{
+                                                const cur = DB.getDrivers();
+                                                const idx = cur.findIndex(d => String(d.id) === String(remoteDrv.id));
+                                                if(idx === -1) cur.push(remoteDrv); else cur[idx] = remoteDrv;
+                                                localStorage.setItem('connectFreteDrivers', JSON.stringify(cur));
+                                                full = remoteDrv;
+                                            }catch(e){}
+                                        }
+                                    }
+                                }catch(e){ /* ignore fetch failures */ }
+                            }
+
+                            // If we have the full driver, prefill search filters (vehicleType and city) and run search
+                            const toShow = full || data;
+                            try{
+                                if(document.getElementById('vehicleType') && toShow.vehicleType) document.getElementById('vehicleType').value = toShow.vehicleType;
+                                if(document.getElementById('locationInput') && toShow.city) document.getElementById('locationInput').value = toShow.city || '';
+                            }catch(e){}
+
+                            // If we have full info and paymentStatus is paid, run searchDrivers to show photos + info; otherwise fall back to displayApprovedDriver
+                            if(full && full.paymentStatus === 'paid'){
+                                try{ searchDrivers(); }catch(e){ displayApprovedDriver(toShow); }
+                            } else {
+                                displayApprovedDriver(toShow);
+                            }
+                        }
+                }catch(e){ /* ignore polling errors */ }
+            }
+            // start polling every 3 seconds
+            setInterval(fetchApproved, 3000);
+            // initial fetch
+            fetchApproved();
+        })();
+            });
+
+        document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('adminUsername').value;
+            const password = document.getElementById('adminPassword').value;
+            const settings = DB.getSettings();
+            
+            if (username === settings.adminCredentials.username && password === settings.adminCredentials.password) {
+                currentAdmin = { username };
+                // create admin session
+                localStorage.setItem('connectFreteAdminSession', JSON.stringify({ username: username, started: new Date().toISOString() }));
+                hideAdminLogin();
+                showAdminPanel();
+            } else {
+                alert('Credenciais administrativas incorretas');
+            }
+        });
+
+        document.getElementById('forgotPasswordForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const recoveryEl = document.getElementById('recoveryEmail');
+            const email = recoveryEl ? recoveryEl.value.trim() : '';
+            const drivers = DB.getDrivers();
+            const driver = drivers.find(d => d.email === email);
+            const forgotMsg = document.getElementById('forgotMsg');
+            if (driver) {
+                forgotMsg.textContent = `Instruções de recuperação de senha (simulado) enviadas para ${email}. Verifique sua caixa de entrada.`;
+                forgotMsg.className = 'text-green-400';
+                forgotMsg.classList.remove('hidden');
+                setTimeout(()=> hideForgotPassword(), 1400);
+            } else {
+                forgotMsg.textContent = `E-mail ${email || ''} não encontrado`;
+                forgotMsg.className = 'text-red-400';
+                forgotMsg.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('recoveryEmail').addEventListener('input', ()=>{
+            const forgotMsg = document.getElementById('forgotMsg');
+            forgotMsg.classList.add('hidden');
+        });
+
+        // Image upload handling
+        function handleImageUpload(input, index) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const container = document.querySelectorAll('.image-upload-container')[index];
+                    const icon = container.querySelector('i');
+                    const img = container.querySelector('img');
+                    
+                    icon.classList.add('hidden');
+                    img.src = e.target.result;
+                    img.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Search functionality
+        function searchDrivers() {
+            const vehicleType = document.getElementById('vehicleType').value;
+            const location = document.getElementById('locationInput').value;
+            
+            if (!vehicleType || !location) {
+                alert('Por favor, selecione o tipo de veículo e informe sua localização');
+                return;
+            }
+            
+            const drivers = DB.getDrivers().filter(driver => 
+                driver.vehicleType === vehicleType && driver.paymentStatus === 'paid'
+            );
+            
+            const resultsContainer = document.getElementById('driversList');
+            resultsContainer.innerHTML = '';
+            
+            if (drivers.length === 0) {
+                resultsContainer.innerHTML = '<p class="text-gray-300 text-center">Nenhum motorista encontrado</p>';
+            } else {
+                drivers.forEach(driver => {
+                    const driverElement = document.createElement('div');
+                    driverElement.className = 'glass-effect rounded-lg p-4';
+                    // prepare up to 3 photos
+                    const photos = (driver.photos && driver.photos.length) ? driver.photos.slice(0,3) : [];
+                    // fallback placeholder for each missing photo
+                    while(photos.length < 3) photos.push('https://via.placeholder.com/320x180?text=Sem+foto');
+
+                    driverElement.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start">
+                                <div class="grid grid-cols-3 gap-2 mr-4">
+                                    <img src="${photos[0]}" alt="Foto 1" class="w-20 h-16 object-cover rounded">
+                                    <img src="${photos[1]}" alt="Foto 2" class="w-20 h-16 object-cover rounded">
+                                    <img src="${photos[2]}" alt="Foto 3" class="w-20 h-16 object-cover rounded">
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">${driver.name}</h4>
+                                    <p class="text-gray-300">${driver.vehicleType} - ${driver.vehiclePlate}</p>
+                                    <p class="text-green-400">Disponível agora</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <div class="text-sm text-gray-300 mb-2">${driver.phone || ''}</div>
+                                <button onclick="openWhatsApp('${driver.phone}')" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg flex items-center">
+                                    <i class="fab fa-whatsapp mr-2"></i>WhatsApp
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(driverElement);
+                });
+            }
+            
+            document.getElementById('searchResults').classList.remove('hidden');
+        }
+
+        // Display a single approved driver directly in the search results (bypasses location requirement)
+                function displayApprovedDriver(driver){
+                    if(!driver) return;
+                    const resultsContainer = document.getElementById('driversList');
+                    resultsContainer.innerHTML = '';
+
+                    const driverElement = document.createElement('div');
+                    driverElement.className = 'glass-effect rounded-lg p-4';
+                    const photos = (driver.photos && driver.photos.length) ? driver.photos.slice(0,3) : ['https://via.placeholder.com/320x180?text=Sem+foto','https://via.placeholder.com/320x180?text=Sem+foto','https://via.placeholder.com/320x180?text=Sem+foto'];
+
+                    driverElement.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start">
+                                <div class="grid grid-cols-3 gap-2 mr-4">
+                                    <img src="${photos[0]}" alt="Foto 1" class="w-20 h-16 object-cover rounded">
+                                    <img src="${photos[1]}" alt="Foto 2" class="w-20 h-16 object-cover rounded">
+                                    <img src="${photos[2]}" alt="Foto 3" class="w-20 h-16 object-cover rounded">
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">${driver.name}</h4>
+                                    <p class="text-gray-300">${driver.vehicleType || ''} - ${driver.vehiclePlate || ''}</p>
+                                    <p class="text-green-400">Disponível agora</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <div class="text-sm text-gray-300 mb-2">${driver.phone || ''}</div>
+                                <button onclick="openWhatsApp('${driver.phone}')" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg flex items-center">
+                                    <i class="fab fa-whatsapp mr-2"></i>WhatsApp
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    resultsContainer.appendChild(driverElement);
+                    document.getElementById('searchResults').classList.remove('hidden');
+
+                    // briefly highlight the search area to indicate the update
+                    try{ const el = document.getElementById('searchResults'); el.style.boxShadow = '0 0 0 3px rgba(34,197,94,0.25)'; setTimeout(()=>{ el.style.boxShadow=''; }, 1800); }catch(e){}
+                }
+
+                // Listen for cross-tab approvals (admin panel writes `connectFreteLastApprovedDriver` to localStorage)
+                window.addEventListener('storage', function(e){
+                    try{
+                        if(!e || !e.key) return;
+                        if(e.key === 'connectFreteLastApprovedDriver'){
+                            const raw = e.newValue || localStorage.getItem('connectFreteLastApprovedDriver');
+                            if(!raw) return; // removed or cleared
+                            const approved = JSON.parse(raw);
+                            // Try to find the full driver object in local DB (to get photos etc.)
+                            (async function(){
+                                try{
+                                    const drivers = DB.getDrivers();
+                                    let full = drivers.find(d => String(d.id) === String(approved.id));
+                                    if(!full){
+                                        // attempt server fetch for the driver
+                                        try{
+                                            const r = await fetch(`/api/drivers/${encodeURIComponent(approved.id)}`);
+                                            if(r.ok) full = await r.json();
+                                            if(full && full.id){
+                                                const cur = DB.getDrivers();
+                                                const idx = cur.findIndex(d => String(d.id) === String(full.id));
+                                                if(idx === -1) cur.push(full); else cur[idx] = full;
+                                                localStorage.setItem('connectFreteDrivers', JSON.stringify(cur));
+                                            }
+                                        }catch(e){}
+                                    }
+
+                                    const toShow = full || approved;
+                                    // Prefill search inputs so user sees context in the search form
+                                    try{
+                                        if(document.getElementById('vehicleType') && toShow.vehicleType) document.getElementById('vehicleType').value = toShow.vehicleType;
+                                        if(document.getElementById('locationInput') && toShow.city) document.getElementById('locationInput').value = toShow.city || '';
+                                    }catch(e){}
+
+                                    if(full && full.paymentStatus === 'paid'){
+                                        try{ searchDrivers(); }catch(e){ displayApprovedDriver(toShow); }
+                                    } else {
+                                        displayApprovedDriver(toShow);
+                                    }
+                                }catch(err){ console.error('Error handling approved driver from storage', err); displayApprovedDriver(approved); }
+                            })();
+                        }
+                    }catch(err){ console.error('Error handling storage event', err); }
+                });
+
+        // WhatsApp integration
+        function openWhatsApp(phone) {
+            if(!phone) { alert('Telefone não disponível'); return; }
+            // Keep digits only
+            let digits = phone.toString().replace(/\D/g, '');
+            // If number seems local (10 or 11 digits), assume Brazil country code +55
+            if(digits.length === 10 || digits.length === 11) digits = '55' + digits;
+            const message = "Olá, encontrei seu contato no Connect Frete e gostaria de solicitar um orçamento.";
+            const url = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+            window.open(url, '_blank');
+        }
+
+        // Payment processing
+        function processPayment(method) {
+            const settings = DB.getSettings();
+            const amount = settings.subscriptionFee;
+
+            // If PIX, show details and confirm
+            if (method === 'pix') {
+                const key = settings.pixKey || '';
+                const name = settings.pixDisplayName || '';
+                const phone = settings.pixDisplayPhone || '';
+                const msg = `Pagar R$ ${amount.toFixed(2)} via PIX\n\nChave: ${key}\nNome: ${name}\nTelefone: ${phone}\n\nConfirmar pagamento?`;
+                if (!confirm(msg)) return; // abort if not confirmed
+            }
+
+            // Simulate payment processing but mark as awaiting confirmation
+            setTimeout(() => {
+                const payment = {
+                    id: Date.now(),
+                    driverId: currentUser ? currentUser.id : 'new',
+                    amount: amount,
+                    method: method,
+                    status: 'awaiting_confirmation',
+                    date: new Date().toISOString()
+                };
+
+                DB.addPayment(payment);
+
+                // Do NOT mark driver as paid until admin confirms; keep paymentStatus pending
+                if (currentUser) {
+                    DB.updateDriver(currentUser.id, { paymentStatus: 'pending', paymentMethod: method });
+                }
+
+                hidePaymentModal();
+
+                // Inform user to confirm payment via email and thank them
+                const supportEmail = 'fretefacil85@gmail.com';
+                alert('Pagamento registrado. Por favor, envie o comprovante para ' + supportEmail + ' para confirmar o pagamento.\n\nObrigado! Suas informações aparecerão no site assim que o pagamento for confirmado.');
+
+                if (!currentUser) {
+                    showLoginModal();
+                }
+            }, 2000);
+        }
+
+        // Admin panel functions
+        function loadAdminPanelData() {
+            const settings = DB.getSettings();
+            const drivers = DB.getDrivers();
+            const payments = DB.getPayments();
+
+            // Safely update settings form if inputs exist
+            const subEl = document.getElementById('subscriptionFeeInput');
+            if (subEl) subEl.value = settings.subscriptionFee;
+            const subTypeEl = document.getElementById('subscriptionTypeInput');
+            if (subTypeEl) subTypeEl.value = settings.subscriptionType || 'one-time';
+            const emailEl = document.getElementById('contactEmailInput');
+            if (emailEl) emailEl.value = settings.contactEmail;
+            const phoneEl = document.getElementById('contactPhoneInput');
+            if (phoneEl) phoneEl.value = settings.contactPhone;
+            const bgEl = document.getElementById('backgroundImageInput');
+            if (bgEl) bgEl.value = settings.backgroundImage;
+            const bankEl = document.getElementById('bankAccountInput');
+            if (bankEl) bankEl.value = settings.bankAccount || '';
+            const pixEl = document.getElementById('pixKeyInput');
+            if (pixEl) pixEl.value = settings.pixKey || '';
+            const pixAdminEl = document.getElementById('pixKeyAdminInput');
+            if (pixAdminEl) pixAdminEl.value = settings.pixKey || '';
+            const pixNameEl = document.getElementById('pixNameAdminInput');
+            if (pixNameEl) pixNameEl.value = settings.pixDisplayName || '';
+            const pixPhoneEl = document.getElementById('pixPhoneAdminInput');
+            if (pixPhoneEl) pixPhoneEl.value = settings.pixDisplayPhone || '';
+
+            // Update stats
+            const totalDriversEl = document.getElementById('totalDrivers');
+            if (totalDriversEl) totalDriversEl.textContent = drivers.length;
+
+            const today = new Date().toISOString().split('T')[0];
+            const dailyEl = document.getElementById('dailyPayments');
+            const pendingEl = document.getElementById('pendingPayments');
+
+            if(window.ServerDB){
+                // Prefer server summary AND full payments list for accurate numbers
+                Promise.all([
+                    fetch(`/api/payments/summary?date=${encodeURIComponent(today)}`).then(r=>r.json()),
+                    fetch(`/api/payments?date=${encodeURIComponent(today)}`).then(r=>r.json())
+                ]).then(([summary, paymentsForDay])=>{
+                    // paymentsForDay contains payment objects for today
+                    const dailyReceived = (paymentsForDay || []).filter(p => p.status === 'completed').reduce((s,p) => s + (p.amount||0), 0);
+                    const dailyToReceive = (paymentsForDay || []).filter(p => p.status !== 'completed').reduce((s,p) => s + (p.amount||0), 0);
+                    if(dailyEl) dailyEl.textContent = `R$ ${dailyReceived.toFixed(2)} (a receber R$ ${dailyToReceive.toFixed(2)})`;
+                    if(pendingEl) pendingEl.textContent = (summary.pendingCount || 0);
+                    const totalDriversEl = document.getElementById('totalDrivers');
+                    if(totalDriversEl) totalDriversEl.textContent = summary.totalDrivers || 0;
+                }).catch(err=>{
+                    // fallback to client-side computation
+                    const paymentsLocal = payments || [];
+                    const dailyReceived = paymentsLocal.filter(p => p.date.startsWith(today) && p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
+                    const dailyToReceive = paymentsLocal.filter(p => p.date.startsWith(today) && p.status !== 'completed').reduce((sum, p) => sum + p.amount, 0);
+                    if (dailyEl) dailyEl.textContent = `R$ ${dailyReceived.toFixed(2)} (a receber R$ ${dailyToReceive.toFixed(2)})`;
+                    const pendingCount = drivers.filter(d => d.paymentStatus === 'pending').length;
+                    if (pendingEl) pendingEl.textContent = pendingCount;
+                });
+            } else {
+                const paymentsLocal = payments || [];
+                const dailyReceived = paymentsLocal.filter(p => p.date.startsWith(today) && p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
+                const dailyToReceive = paymentsLocal.filter(p => p.date.startsWith(today) && p.status !== 'completed').reduce((sum, p) => sum + p.amount, 0);
+                if (dailyEl) dailyEl.textContent = `R$ ${dailyReceived.toFixed(2)} (a receber R$ ${dailyToReceive.toFixed(2)})`;
+                const pendingCount = drivers.filter(d => d.paymentStatus === 'pending').length;
+                if (pendingEl) pendingEl.textContent = pendingCount;
+            }
+
+            // Update drivers table
+            const tableBody = document.getElementById('driversTable');
+            if (tableBody) {
+                tableBody.innerHTML = '';
+
+                drivers.forEach(driver => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-600';
+                    const city = driver.city || '';
+                    const state = driver.state || '';
+                    // determine billing type display (driver-specific or site default)
+                    const billingType = driver.billingType || settings.subscriptionType || 'one-time';
+                    row.innerHTML = `
+                        <td class="py-2">${driver.name}</td>
+                        <td class="py-2">${driver.phone || ''}</td>
+                        <td class="py-2">${city}</td>
+                        <td class="py-2">${state}</td>
+                        <td class="py-2">${driver.vehicleType}</td>
+                        <td class="py-2">
+                            <span class="${driver.paymentStatus === 'paid' ? 'text-green-400' : 'text-red-400'}">
+                                ${driver.paymentStatus === 'paid' ? 'Pago' : 'Pendente'}
+                            </span>
+                        </td>
+                        <td class="py-2">
+                            ${driver.paymentMethod || '-'}
+                            <div class="text-sm mt-1">
+                                <label class="mr-3"><input type="radio" name="billing_${driver.id}" value="one-time" ${billingType === 'one-time' ? 'checked' : ''} onchange="setDriverBillingType(${driver.id}, 'one-time')"> Única</label>
+                                <label><input type="radio" name="billing_${driver.id}" value="monthly" ${billingType === 'monthly' ? 'checked' : ''} onchange="setDriverBillingType(${driver.id}, 'monthly')"> Mensal</label>
+                            </div>
+                        </td>
+                        <td class="py-2 space-x-2">
+                            <button onclick="window.open('motorista.html?id=${driver.id}', '_blank')" class="px-3 py-1 rounded text-sm bg-blue-600 hover:bg-blue-700">
+                                Ver
+                            </button>
+                            <button onclick="toggleDriverStatus(${driver.id})" class="px-3 py-1 rounded text-sm ${driver.paymentStatus === 'paid' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}">
+                                ${driver.paymentStatus === 'paid' ? 'Bloquear' : 'Liberar'}
+                            </button>
+                            <button onclick="deleteDriver(${driver.id})" class="px-3 py-1 rounded text-sm bg-gray-700 hover:bg-gray-600">
+                                Excluir
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }
+            // Render recent payment logs if present
+            try { renderPaymentLogs(); } catch(e){}
+
+            // contact messages feature removed
+        }
+
+        function deleteDriver(driverId) {
+            if (!confirm('Tem certeza que deseja excluir este motorista? Esta ação não pode ser desfeita.')) return;
+            try{
+                // Prefer DB.deleteDriver (will call server when available) and update local cache
+                if(typeof DB.deleteDriver === 'function'){
+                    DB.deleteDriver(driverId);
+                } else {
+                    const drivers = DB.getDrivers();
+                    const filtered = drivers.filter(d => d.id !== driverId);
+                    localStorage.setItem('connectFreteDrivers', JSON.stringify(filtered));
+                }
+            }catch(e){
+                // fallback
+                const drivers = DB.getDrivers();
+                const filtered = drivers.filter(d => d.id !== driverId);
+                localStorage.setItem('connectFreteDrivers', JSON.stringify(filtered));
+            }
+            loadAdminPanelData();
+        }
+
+        function updateSiteSettings() {
+            const settings = DB.getSettings();
+            // Build new settings carefully, only reading inputs that exist
+            const newSettings = { ...settings };
+
+            const subEl = document.getElementById('subscriptionFeeInput');
+            if (subEl) newSettings.subscriptionFee = parseFloat(subEl.value);
+            const subTypeEl = document.getElementById('subscriptionTypeInput');
+            if (subTypeEl) newSettings.subscriptionType = subTypeEl.value;
+            const emailEl = document.getElementById('contactEmailInput');
+            if (emailEl) newSettings.contactEmail = emailEl.value;
+            const phoneEl = document.getElementById('contactPhoneInput');
+            if (phoneEl) newSettings.contactPhone = phoneEl.value;
+            const bgEl = document.getElementById('backgroundImageInput');
+            if (bgEl) newSettings.backgroundImage = bgEl.value;
+            const bankEl = document.getElementById('bankAccountInput');
+            if (bankEl) newSettings.bankAccount = bankEl.value;
+            const pixEl = document.getElementById('pixKeyInput');
+            if (pixEl) newSettings.pixKey = pixEl.value;
+            const pixAdminEl = document.getElementById('pixKeyAdminInput');
+            if (pixAdminEl) newSettings.pixKey = pixAdminEl.value;
+            const pixNameEl = document.getElementById('pixNameAdminInput');
+            if (pixNameEl) newSettings.pixDisplayName = pixNameEl.value;
+            const pixPhoneEl = document.getElementById('pixPhoneAdminInput');
+            if (pixPhoneEl) newSettings.pixDisplayPhone = pixPhoneEl.value;
+
+            DB.updateSettings(newSettings);
+            updateFrontendSettings();
+            alert('Configurações atualizadas com sucesso!');
+        }
+
+        function updateFrontendSettings() {
+            const settings = DB.getSettings();
+
+            // Update subscription fee display
+            const subDisplay = document.getElementById('subscriptionFee');
+            if (subDisplay) {
+                const type = settings.subscriptionType || 'one-time';
+                const suffix = type === 'monthly' ? '/mensal' : '/taxa única';
+                subDisplay.textContent = `R$ ${settings.subscriptionFee.toFixed(2)}${suffix}`;
+            }
+            const currentFeeEl = document.getElementById('currentFee');
+            if (currentFeeEl) currentFeeEl.textContent = settings.subscriptionFee.toFixed(2);
+            const currentFeeSuffixEl = document.getElementById('currentFeeSuffix');
+            if (currentFeeSuffixEl) {
+                const type = settings.subscriptionType || 'one-time';
+                currentFeeSuffixEl.textContent = type === 'monthly' ? '/mensal' : '/taxa única';
+            }
+
+            // Update footer contact info
+            const footerEmailEl = document.getElementById('footerEmail');
+            if (footerEmailEl) footerEmailEl.textContent = settings.contactEmail;
+            const footerPhoneEl = document.getElementById('footerPhone');
+            if (footerPhoneEl) footerPhoneEl.textContent = settings.contactPhone;
+
+            // Update background image
+            const mainBg = document.getElementById('mainBackground');
+            if (mainBg && settings.backgroundImage) mainBg.style.backgroundImage = `url('${settings.backgroundImage}')`;
+        }
+
+        function toggleDriverStatus(driverId) {
+            const drivers = DB.getDrivers();
+            const driver = drivers.find(d => d.id === driverId);
+            
+            if (driver) {
+                const newStatus = driver.paymentStatus === 'paid' ? 'pending' : 'paid';
+                DB.updateDriver(driverId, { paymentStatus: newStatus });
+                // When a driver is approved (paid), write a short-lived flag to localStorage so other tabs
+                // (for example the public `index.html`) can react via the storage event and update the
+                // search box / results immediately. Remove the flag when driver is blocked again.
+                try{
+                    if(newStatus === 'paid'){
+                        // store minimal driver info for quick display
+                        const approved = {
+                            id: driver.id,
+                            name: driver.name,
+                            phone: driver.phone,
+                            vehicleType: driver.vehicleType,
+                            vehiclePlate: driver.vehiclePlate,
+                            city: driver.city || '' ,
+                            paymentStatus: 'paid',
+                            ts: Date.now()
+                        };
+                        localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(approved));
+                    } else {
+                        localStorage.removeItem('connectFreteLastApprovedDriver');
+                    }
+                }catch(e){ console.warn('Could not set approved driver flag', e); }
+                loadAdminPanelData();
+                alert(`Status do motorista ${driver.name} atualizado para ${newStatus === 'paid' ? 'Pago' : 'Pendente'}`);
+            }
+        }
+
+        function setDriverBillingType(driverId, type) {
+            try {
+                const drivers = DB.getDrivers();
+                const d = drivers.find(x => String(x.id) === String(driverId));
+                if (!d) return;
+                d.billingType = type; // 'one-time' or 'monthly'
+                localStorage.setItem('connectFreteDrivers', JSON.stringify(drivers));
+                // refresh table to reflect changes if admin panel is open
+                try { loadAdminPanelData(); } catch(e){}
+            } catch (err) { console.error('Erro ao salvar tipo de cobrança do motorista', err); }
+        }
+
+        function generateDailyReport() {
+            const today = new Date().toISOString().split('T')[0];
+            // If server is available, request summary
+            if(window.ServerDB && typeof window.ServerDB.getPayments === 'function'){
+                fetch(`/api/payments/summary?date=${encodeURIComponent(today)}`).then(r=>r.json()).then(summary=>{
+                    alert(`Relatório Diário:\n\nData: ${summary.date}\nPagamentos realizados: ${summary.paidCount}\nReceita total: R$ ${summary.dailyTotal.toFixed(2)}`);
+                }).catch(err=>{
+                    // fallback to client-side
+                    const payments = DB.getPayments();
+                    const dailyPayments = payments.filter(p => p.date.startsWith(today));
+                    const paidCount = dailyPayments.filter(p => p.status === 'completed').length;
+                    const totalRevenue = dailyPayments.reduce((sum, p) => sum + (p.status === 'completed' ? p.amount : 0), 0);
+                    alert(`Relatório Diário:\n\nPagamentos realizados: ${paidCount}\nReceita total: R$ ${totalRevenue.toFixed(2)}`);
+                });
+                return;
+            }
+            // client-only fallback
+            const payments = DB.getPayments();
+            const dailyPayments = payments.filter(p => p.date.startsWith(today));
+            const paidCount = dailyPayments.filter(p => p.status === 'completed').length;
+            const totalRevenue = dailyPayments.reduce((sum, p) => sum + (p.status === 'completed' ? p.amount : 0), 0);
+            alert(`Relatório Diário:\n\nPagamentos realizados: ${paidCount}\nReceita total: R$ ${totalRevenue.toFixed(2)}`);
+        }
+
+        // Clear payments recorded for today from localStorage
+        function clearTodayPayments(){
+            try{
+                const today = new Date().toISOString().split('T')[0];
+                if(!confirm(`Deseja realmente remover os recebimentos registrados para hoje (${today})? Esta ação criará um backup no servidor se disponível e não pode ser desfeita.`)) return;
+
+                if(window.ServerDB){
+                    // call server to delete and get backup
+                    fetch(`/api/payments/daily?date=${encodeURIComponent(today)}`, { method: 'DELETE' }).then(r=>r.json()).then(resp=>{
+                        if(resp && resp.ok){
+                            // add a client-side log as well
+                            const logsRaw = localStorage.getItem('connectFreteLogs') || '[]';
+                            const logs = JSON.parse(logsRaw);
+                            const entry = { id: Date.now(), action: 'clear_today_payments', removedCount: resp.removedCount, backupKey: `server-backup-${today}`, date: new Date().toISOString(), user: (DB.getSettings && DB.getSettings().adminCredentials) ? DB.getSettings().adminCredentials.username : 'admin' };
+                            logs.unshift(entry);
+                            while(logs.length > 50) logs.pop();
+                            localStorage.setItem('connectFreteLogs', JSON.stringify(logs));
+                            try { loadAdminPanelData(); } catch(e){}
+                            try { renderPaymentLogs(); } catch(e){}
+                            alert(`Recebimentos do dia removidos com sucesso no servidor. Removidos: ${resp.removedCount}`);
+                        } else {
+                            alert('Falha ao limpar pagamentos no servidor. Verifique o console.');
+                        }
+                    }).catch(err=>{ console.error('Erro ao chamar API para limpar pagamentos do dia', err); alert('Erro ao limpar pagamentos do dia. Veja o console.'); });
+                    return;
+                }
+
+                // client-only fallback (localStorage)
+                const paymentsRaw = localStorage.getItem('connectFretePayments') || '[]';
+                const payments = JSON.parse(paymentsRaw);
+                const toRemove = payments.filter(p => p.date.startsWith(today));
+                const remaining = payments.filter(p => !p.date.startsWith(today));
+
+                if(toRemove.length === 0){
+                    alert('Não há pagamentos registrados para hoje.');
+                    return;
+                }
+
+                // backup
+                const ts = Date.now();
+                const backupKey = `connectFretePayments_backup_${ts}`;
+                localStorage.setItem(backupKey, JSON.stringify(payments));
+
+                // write remaining
+                localStorage.setItem('connectFretePayments', JSON.stringify(remaining));
+
+                // log entry
+                const logsRaw = localStorage.getItem('connectFreteLogs') || '[]';
+                const logs = JSON.parse(logsRaw);
+                const entry = {
+                    id: ts,
+                    action: 'clear_today_payments',
+                    removedCount: toRemove.length,
+                    backupKey: backupKey,
+                    date: new Date().toISOString(),
+                    user: (DB.getSettings && DB.getSettings().adminCredentials) ? DB.getSettings().adminCredentials.username : 'admin'
+                };
+                logs.unshift(entry); // latest first
+                // keep a reasonable limit (e.g., 50 logs)
+                while(logs.length > 50) logs.pop();
+                localStorage.setItem('connectFreteLogs', JSON.stringify(logs));
+
+                // Refresh admin panel data and logs
+                try { loadAdminPanelData(); } catch(e){}
+                try { renderPaymentLogs(); } catch(e){}
+
+                alert(`Recebimentos do dia removidos com sucesso. Backup salvo em: ${backupKey}`);
+            }catch(err){
+                console.error('Erro ao limpar pagamentos do dia', err);
+                alert('Erro ao limpar pagamentos do dia. Veja o console para detalhes.');
+            }
+        }
+
+        function renderPaymentLogs(){
+            const listEl = document.getElementById('paymentsLogList');
+            if(!listEl) return;
+            const logsRaw = localStorage.getItem('connectFreteLogs') || '[]';
+            const logs = JSON.parse(logsRaw);
+            listEl.innerHTML = '';
+            logs.slice(0,10).forEach(l => {
+                const li = document.createElement('li');
+                const date = new Date(l.date).toLocaleString();
+                li.textContent = `${date} — ${l.action} — removidos: ${l.removedCount} — backup: ${l.backupKey}`;
+                listEl.appendChild(li);
+            });
+        }
+
+        // Contact messages feature removed
+
+        // Clear payment logs with backup
+        function clearPaymentLogs(){
+            try{
+                // remove current logs immediately without backup
+                localStorage.removeItem('connectFreteLogs');
+                try{ renderPaymentLogs(); } catch(e){}
+            }catch(e){ console.error('Erro apagando logs', e); }
+        }
+
+        // Export CSV of drivers with paymentStatus === 'paid'
+        function exportPaidDriversCSV(){
+            try{
+                const drivers = DB.getDrivers();
+                const payments = DB.getPayments();
+                const paidDrivers = drivers.filter(d => d.paymentStatus === 'paid');
+                if(paidDrivers.length === 0){ alert('Não há motoristas com pagamento confirmado.'); return; }
+
+                // CSV header
+                const headers = [
+                    'id','name','cpf','email','phone','city','state','vehicleType','vehiclePlate','paymentStatus','paymentMethod','lastPaymentDate','lastPaymentAmount','registrationDate'
+                ];
+
+                const rows = [headers.join(',')];
+
+                paidDrivers.forEach(d => {
+                    // find last completed payment for this driver
+                    const driverPayments = payments.filter(p => String(p.driverId) === String(d.id) && p.status === 'completed');
+                    const last = driverPayments.sort((a,b)=> new Date(b.date) - new Date(a.date))[0];
+                    const lastDate = last ? new Date(last.date).toISOString() : '';
+                    const lastAmount = last ? (''+last.amount) : '';
+
+                    const values = [
+                        d.id,
+                        `"${(d.name||'').replace(/"/g,'""')}"`,
+                        `"${(d.cpf||'').replace(/"/g,'""')}"`,
+                        `"${(d.email||'').replace(/"/g,'""')}"`,
+                        `"${(d.phone||'').replace(/"/g,'""')}"`,
+                        `"${(d.city||'').replace(/"/g,'""')}"`,
+                        `"${(d.state||'').replace(/"/g,'""')}"`,
+                        `"${(d.vehicleType||'').replace(/"/g,'""')}"`,
+                        `"${(d.vehiclePlate||'').replace(/"/g,'""')}"`,
+                        `"${(d.paymentStatus||'').replace(/"/g,'""')}"`,
+                        `"${(d.paymentMethod||'').replace(/"/g,'""')}"`,
+                        `"${lastDate}"`,
+                        `"${lastAmount}"`,
+                        `"${(d.registrationDate||'').replace(/"/g,'""')}"`
+                    ];
+                    rows.push(values.join(','));
+                });
+
+                const csvContent = rows.join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const ts = new Date().toISOString().split('T')[0];
+                a.download = `relatorio_motoristas_pagos_${ts}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            }catch(err){ console.error('Erro exportando CSV', err); alert('Erro ao gerar CSV. Veja o console.'); }
+        }
+
+        // Export paid drivers as a printable HTML (user can Save as PDF from print dialog)
+        function exportPaidDriversPDF(){
+            try{
+                const drivers = DB.getDrivers();
+                const payments = DB.getPayments();
+                const paidDrivers = drivers.filter(d => d.paymentStatus === 'paid');
+                if(paidDrivers.length === 0){ alert('Não há motoristas com pagamento confirmado.'); return; }
+                // If server available, fetch up-to-date data from server
+                const renderPdf = (items) => {
+                    // create PDF using jsPDF and autoTable
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    doc.setFontSize(14);
+                    doc.text('Relatório de Motoristas Pagos', 14, 20);
+                    doc.setFontSize(10);
+                    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 28);
+
+                    // include Total Pago column (sum of completed payments per driver)
+                    const head = [['ID','Nome','CPF','E-mail','Telefone','Cidade','Estado','Veículo','Placa','Valor do PIX','Data de cadastro']];
+                    const body = items.map(d => [
+                        d.id,
+                        d.name||'',
+                        d.cpf||'',
+                        d.email||'',
+                        d.phone||'',
+                        d.city||'',
+                        d.state||'',
+                        d.vehicleType||'',
+                        d.vehiclePlate||'',
+                        (d.totalPix != null ? (Number(d.totalPix).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })) : ''),
+                        (d.registrationDate ? new Date(d.registrationDate).toLocaleString() : '')
+                    ]);
+
+                    doc.autoTable({ startY: 36, head, body, styles: { fontSize: 8 } });
+                    const ts = new Date().toISOString().split('T')[0];
+                    doc.save(`relatorio_motoristas_pagos_${ts}.pdf`);
+                };
+
+                if(window.ServerDB){
+                    // fetch drivers and payments from server to ensure completeness
+                    Promise.all([fetch('/api/drivers').then(r=>r.json()), fetch('/api/payments').then(r=>r.json()), fetch('/api/approved-driver').then(r=>r.json()).catch(()=>null)]).then(([driversServer, paymentsServer, lastApproved])=>{
+                        const paid = driversServer.filter(d => d.paymentStatus === 'paid');
+                        const items = paid.map(d =>{
+                            const driverPayments = paymentsServer.filter(p => String(p.driverId) === String(d.id) && p.status === 'completed');
+                            const last = driverPayments.sort((a,b)=> new Date(b.date) - new Date(a.date))[0];
+                            const totalPaid = driverPayments.reduce((s,p)=> s + (p.amount || 0), 0);
+                            // compute total paid via PIX specifically
+                            const totalPix = paymentsServer.filter(p => String(p.driverId) === String(d.id) && p.status === 'completed' && String(p.method || p.paymentMethod || '').toLowerCase() === 'pix').reduce((s,p)=> s + (p.amount || 0), 0);
+                            return { id: d.id, name: d.name, cpf: d.cpf, email: d.email, phone: d.phone, city: d.city, state: d.state, vehicleType: d.vehicleType, vehiclePlate: d.vehiclePlate, paymentMethod: d.paymentMethod||'', totalPaid: totalPaid, totalPix: totalPix, registrationDate: d.registrationDate || '' };
+                        });
+                        console.log('PDF items (server):', items);
+                        renderPdf(items);
+                    }).catch(err=>{
+                        console.error('Erro obtendo dados para PDF no servidor', err);
+                        // fallback to local
+                        const items = paidDrivers.map(d=>{
+                            const driverPayments = payments.filter(p => String(p.driverId) === String(d.id) && p.status === 'completed');
+                            const last = driverPayments.sort((a,b)=> new Date(b.date) - new Date(a.date))[0];
+                            const totalPaid = driverPayments.reduce((s,p)=> s + (p.amount || 0), 0);
+                            const totalPix = driverPayments.filter(p => String(p.method || p.paymentMethod || '').toLowerCase() === 'pix').reduce((s,p)=> s + (p.amount || 0), 0);
+                            let liberationDate = '';
+                            try{ if(last && last.date) liberationDate = new Date(last.date).toLocaleString(); }catch(e){}
+                            return { id: d.id, name: d.name, cpf: d.cpf, email: d.email, phone: d.phone, city: d.city, state: d.state, vehicleType: d.vehicleType, vehiclePlate: d.vehiclePlate, paymentMethod: d.paymentMethod||'', totalPaid: totalPaid, totalPix: totalPix, registrationDate: d.registrationDate || '' };
+                        });
+                        console.log('PDF items (fallback):', items);
+                        renderPdf(items);
+                    });
+                    return;
+                }
+
+                // client-only fallback: compute totalPaid, totalPix and include registrationDate per driver
+                const items = paidDrivers.map(d=>{
+                    const driverPayments = payments.filter(p => String(p.driverId) === String(d.id) && p.status === 'completed');
+                    const last = driverPayments.sort((a,b)=> new Date(b.date) - new Date(a.date))[0];
+                    const totalPaid = driverPayments.reduce((s,p)=> s + (p.amount || 0), 0);
+                    // compute total paid via PIX specifically (handle both 'method' and 'paymentMethod')
+                    const totalPix = driverPayments.filter(p => String(p.method || p.paymentMethod || '').toLowerCase() === 'pix').reduce((s,p)=> s + (p.amount || 0), 0);
+                    let liberationDate = '';
+                    try{ if(last && last.date) liberationDate = new Date(last.date).toLocaleString(); }catch(e){}
+                    return { id: d.id, name: d.name, cpf: d.cpf, email: d.email, phone: d.phone, city: d.city, state: d.state, vehicleType: d.vehicleType, vehiclePlate: d.vehiclePlate, paymentMethod: d.paymentMethod||'', totalPaid: totalPaid, totalPix: totalPix, registrationDate: d.registrationDate || '', liberationDate: liberationDate };
+                });
+                console.log('PDF items (client-only):', items);
+                renderPdf(items);
+            }catch(err){ console.error('Erro gerando PDF (printable) do relatório', err); alert('Erro ao gerar PDF. Veja o console.'); }
+        }
+
+        // Admin credentials are managed via the inline form in the admin panel (submitAdminCredsInline)
+
+        function isAdminSessionActive(){
+            const s = localStorage.getItem('connectFreteAdminSession');
+            return !!s;
+        }
+
+        function forceAdminLogout(createLog = false){
+            // remove session
+            localStorage.removeItem('connectFreteAdminSession');
+            currentAdmin = null;
+            // close admin panel if open
+            try{ hideAdminPanel(); } catch(e){}
+
+            if(createLog){
+                try{
+                    const logsRaw = localStorage.getItem('connectFreteLogs') || '[]';
+                    const logs = JSON.parse(logsRaw);
+                    const entry = { id: Date.now(), action: 'force_admin_logout', date: new Date().toISOString() };
+                    logs.unshift(entry);
+                    while(logs.length > 50) logs.pop();
+                    localStorage.setItem('connectFreteLogs', JSON.stringify(logs));
+                    try{ renderPaymentLogs(); } catch(e){}
+                }catch(e){ console.error('Erro ao registrar log de logout forçado', e); }
+            }
+        }
+
+        function submitAdminCredsInline(){
+            const currentUser = document.getElementById('inlineAdminUser').value.trim();
+            const currentPass = document.getElementById('inlineAdminCurrentPass').value;
+            const newUser = document.getElementById('inlineAdminNewUser').value.trim();
+            const newPass = document.getElementById('inlineAdminNewPass').value;
+            const confirmPass = document.getElementById('inlineAdminConfirmPass').value;
+
+            const settingsRaw = localStorage.getItem('connectFreteSettings');
+            const settings = settingsRaw ? JSON.parse(settingsRaw) : null;
+            if(!settings || !settings.adminCredentials){ alert('Configurações administrativas não encontradas.'); return; }
+
+            if(currentUser !== settings.adminCredentials.username || currentPass !== settings.adminCredentials.password){ alert('Usuário ou senha atuais incorretos'); return; }
+            if(!newUser){ alert('Informe um novo usuário'); return; }
+            if(!newPass || newPass.length < 4){ alert('A nova senha deve ter ao menos 4 caracteres'); return; }
+            if(newPass !== confirmPass){ alert('Confirmação de senha não coincide'); return; }
+
+            settings.adminCredentials = { username: newUser, password: newPass };
+            localStorage.setItem('connectFreteSettings', JSON.stringify(settings));
+
+            // log
+            try{
+                const logsRaw = localStorage.getItem('connectFreteLogs') || '[]';
+                const logs = JSON.parse(logsRaw);
+                const entry = { id: Date.now(), action: 'update_admin_credentials_inline', user: newUser, date: new Date().toISOString() };
+                logs.unshift(entry);
+                while(logs.length>50) logs.pop();
+                localStorage.setItem('connectFreteLogs', JSON.stringify(logs));
+            }catch(e){ console.error('Erro ao registrar log', e); }
+
+            // force logout
+            try{ forceAdminLogout(true); } catch(e){}
+
+            // clear inline fields
+            document.getElementById('inlineAdminUser').value=''; document.getElementById('inlineAdminCurrentPass').value='';
+            document.getElementById('inlineAdminNewUser').value=''; document.getElementById('inlineAdminNewPass').value=''; document.getElementById('inlineAdminConfirmPass').value='';
+
+            alert('Credenciais atualizadas com sucesso (sessão admin encerrada)');
+            try{ renderPaymentLogs(); } catch(e){}
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            const modals = ['loginModal', 'registerModal', 'adminLoginModal', 'adminPanel', 'forgotPasswordModal', 'paymentModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (e.target === modal) {
+                    if (modalId === 'loginModal') hideLoginModal();
+                    if (modalId === 'registerModal') hideRegisterModal();
+                    if (modalId === 'adminLoginModal') hideAdminLogin();
+                    if (modalId === 'adminPanel') hideAdminPanel();
+                    if (modalId === 'forgotPasswordModal') hideForgotPassword();
+                    if (modalId === 'paymentModal') hidePaymentModal();
+                }
+            });
+        });
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            updateFrontendSettings();
+            console.log('Connect Frete initialized');
+            // reflect driver session in nav
+            try{ renderDriverNavState(); } catch(e){}
+            // Seed helper: use ?seed=1 to create a test driver and open motorista profile
+            try {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('seed') === '1') {
+                    const id = Date.now();
+                    const testDriver = {
+                        id: id,
+                        name: 'Motorista Teste',
+                        cpf: '000.000.000-00',
+                        email: 'teste@motorista.com',
+                        phone: '11999999999',
+                        password: 'teste123',
+                        vehicleType: 'van',
+                        vehiclePlate: 'ABC1D23',
+                        photos: [
+                            'https://via.placeholder.com/800x480?text=Foto+1',
+                            'https://via.placeholder.com/800x480?text=Foto+2',
+                            'https://via.placeholder.com/800x480?text=Foto+3'
+                        ],
+                        paymentStatus: 'paid',
+                        registrationDate: new Date().toISOString()
+                    };
+
+                    const drivers = DB.getDrivers();
+                    drivers.push(testDriver);
+                    localStorage.setItem('connectFreteDrivers', JSON.stringify(drivers));
+                    // Redirect to motorista page for the new driver
+                    window.location.href = `motorista.html?id=${id}`;
+                }
+            } catch (e) { console.error('Seed failed', e); }
+                // Tentar ativar o mapa automaticamente ao carregar (solicita permissão de geolocalização)
+                try {
+                    // small timeout to ensure DOM updates applied
+                    setTimeout(function(){
+                        // startLiveMap é defensiva quanto à disponibilidade de elementos e permissões
+                        if(typeof startLiveMap === 'function') startLiveMap();
+                    }, 300);
+                } catch(err){ console.error('Falha ao iniciar mapa automaticamente', err); }
+            });
+    </script>
+</body>
+</html>

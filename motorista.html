@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Área do Motorista - Connect Frete</title>
+	<script src="https://cdn.tailwindcss.com"></script>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+	<style>
+		body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:#0f172a; color:#fff; }
+		.glass { background: rgba(15,23,42,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.06); }
+		.img-placeholder { width:100%; height:160px; object-fit:cover; border-radius:0.5rem; }
+	</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+	<div class="max-w-4xl w-full">
+		<div class="flex items-center justify-between mb-6">
+			<h1 class="text-2xl font-bold">Área do Motorista</h1>
+			<div class="space-x-2">
+				<a href="index.html" class="text-sm text-gray-300 hover:text-white">Voltar ao site</a>
+			</div>
+		</div>
+
+		<div class="glass rounded-2xl p-6">
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+				<!-- Left: photos -->
+				<div>
+					<h2 class="text-lg font-semibold mb-3">Fotos do Veículo</h2>
+					<div class="grid grid-cols-1 gap-4">
+						<div class="flex flex-col">
+							<div class="dropzone relative">
+								<img id="photo0" src="" alt="Foto 1" class="img-placeholder bg-gray-700 mb-2 cursor-pointer">
+								<div class="absolute inset-0 flex items-center justify-center pointer-events-none text-sm text-gray-300">Clique ou arraste a foto aqui</div>
+							</div>
+							<input id="photoInput0" type="file" accept="image/*" class="hidden">
+							<div class="flex gap-2">
+								<button id="changePhoto0" class="w-full bg-secondary hover:bg-blue-700 text-white py-2 rounded">Trocar Foto 1</button>
+								<button id="removePhoto0" class="w-1/4 bg-red-600 hover:bg-red-700 text-white py-2 rounded">Remover</button>
+							</div>
+						</div>
+
+						<div class="flex flex-col">
+							<div class="dropzone relative">
+								<img id="photo1" src="" alt="Foto 2" class="img-placeholder bg-gray-700 mb-2 cursor-pointer">
+								<div class="absolute inset-0 flex items-center justify-center pointer-events-none text-sm text-gray-300">Clique ou arraste a foto aqui</div>
+							</div>
+							<input id="photoInput1" type="file" accept="image/*" class="hidden">
+							<div class="flex gap-2">
+								<button id="changePhoto1" class="w-full bg-secondary hover:bg-blue-700 text-white py-2 rounded">Trocar Foto 2</button>
+								<button id="removePhoto1" class="w-1/4 bg-red-600 hover:bg-red-700 text-white py-2 rounded">Remover</button>
+							</div>
+						</div>
+
+						<div class="flex flex-col">
+							<div class="dropzone relative">
+								<img id="photo2" src="" alt="Foto 3" class="img-placeholder bg-gray-700 mb-2 cursor-pointer">
+								<div class="absolute inset-0 flex items-center justify-center pointer-events-none text-sm text-gray-300">Clique ou arraste a foto aqui</div>
+							</div>
+							<input id="photoInput2" type="file" accept="image/*" class="hidden">
+							<div class="flex gap-2">
+								<button id="changePhoto2" class="w-full bg-secondary hover:bg-blue-700 text-white py-2 rounded">Trocar Foto 3</button>
+								<button id="removePhoto2" class="w-1/4 bg-red-600 hover:bg-red-700 text-white py-2 rounded">Remover</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Right: form -->
+				<div class="md:col-span-2">
+					<h2 class="text-lg font-semibold mb-3">Dados do Cadastro</h2>
+					<form id="driverForm" class="space-y-4">
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<label class="text-sm text-gray-300">Nome completo</label>
+								<input id="driverName" type="text" class="w-full mt-1 p-3 rounded bg-gray-800 text-white" required>
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">CPF</label>
+								<input id="driverCpf" type="text" class="w-full mt-1 p-3 rounded bg-gray-800 text-white" required>
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">E-mail</label>
+								<input id="driverEmail" type="email" class="w-full mt-1 p-3 rounded bg-gray-800 text-white" required>
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">Telefone / WhatsApp</label>
+								<input id="driverPhone" type="tel" class="w-full mt-1 p-3 rounded bg-gray-800 text-white" required>
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">Senha</label>
+								<input id="driverPassword" type="password" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">Confirmar Senha</label>
+								<input id="driverConfirmPassword" type="password" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">Cidade</label>
+								<input id="driverCity" type="text" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">Estado</label>
+								<input id="driverState" type="text" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+							</div>
+						</div>
+
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+							<div>
+								<label class="text-sm text-gray-300">Tipo de veículo</label>
+								<select id="vehicleTypeSelect" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+									<option value="">Selecione</option>
+									<option value="mudanca">Caminhão de Mudança</option>
+									<option value="frete">Caminhão de Frete</option>
+									<option value="van">Van</option>
+								</select>
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">Placa</label>
+								<input id="vehiclePlate" type="text" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+							</div>
+							<div>
+								<label class="text-sm text-gray-300">Status do Pagamento</label>
+								<input id="paymentStatus" type="text" class="w-full mt-1 p-3 rounded bg-gray-800 text-white" disabled>
+							</div>
+						</div>
+
+						<div class="flex gap-4">
+							<button id="saveDriver" type="button" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded">Salvar Dados</button>
+							<button id="savePhotos" type="button" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded">Salvar Fotos</button>
+							<button id="payFeeBtn" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded">Pagar Taxa</button>
+							<button id="deleteAccount" type="button" class="ml-auto bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded">Excluir Conta</button>
+						</div>
+
+						<!-- Short contact message removed per request -->
+
+						<!-- Change password section -->
+						<div class="mt-6 p-4 bg-gray-900 rounded">
+							<h3 class="text-lg font-semibold mb-3">Alterar Senha</h3>
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+								<div>
+									<label class="text-sm text-gray-300">Senha atual</label>
+									<input id="currentPassword" type="password" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+								</div>
+								<div>
+									<label class="text-sm text-gray-300">Nova senha</label>
+									<input id="newPassword" type="password" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+								</div>
+								<div>
+									<label class="text-sm text-gray-300">Confirmar nova senha</label>
+									<input id="confirmPassword" type="password" class="w-full mt-1 p-3 rounded bg-gray-800 text-white">
+								</div>
+							</div>
+							<div class="mt-4">
+								<button id="changePasswordBtn" type="button" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded">Alterar Senha</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Driver messages removed as requested -->
+
+	<!-- Payment Modal (local to motorista) -->
+	<div id="paymentModalLocal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4">
+		<div class="glass rounded-2xl p-6 max-w-md w-full">
+			<div class="flex justify-between items-center mb-4">
+				<h3 class="text-xl font-semibold">Pagamento da Taxa</h3>
+				<button onclick="hidePaymentModalLocal()" class="text-gray-300 hover:text-white"><i class="fas fa-times"></i></button>
+			</div>
+			<p class="text-gray-300 mb-4">Valor: <span id="paymentAmountLocal" class="font-semibold">R$ 99,90</span></p>
+			<div class="space-y-3">
+				<button onclick="processPaymentLocal('pix')" class="w-full bg-green-600 hover:bg-green-700 py-3 rounded text-white">Pagar com PIX</button>
+			</div>
+		</div>
+	</div>
+
+	<script>
+	</script>
+	<script src="/server-db-shim.js"></script>
+	<script>
+		// Shared DB functions (compatible with index.html)
+		const DB = {
+			getDrivers: function(){
+				return JSON.parse(localStorage.getItem('connectFreteDrivers') || '[]');
+			},
+			updateDriver: function(id, updates){
+				const drivers = this.getDrivers();
+				const idx = drivers.findIndex(d=>d.id===id);
+				if(idx!==-1){ drivers[idx] = {...drivers[idx], ...updates}; localStorage.setItem('connectFreteDrivers', JSON.stringify(drivers)); }
+			},
+			addOrUpdateDriver: function(driver){
+				const drivers = this.getDrivers();
+				const idx = drivers.findIndex(d=>d.id===driver.id);
+				if(idx===-1){ drivers.push(driver); } else { drivers[idx] = driver; }
+				localStorage.setItem('connectFreteDrivers', JSON.stringify(drivers));
+			}
+		};
+
+		// Payment helpers stored in localStorage; adapter will wrap these when ServerDB is available
+		DB.getPayments = function(){
+			return JSON.parse(localStorage.getItem('connectFretePayments') || '[]');
+		};
+		DB.addPayment = function(payment){
+			const payments = DB.getPayments();
+			payments.push(payment);
+			localStorage.setItem('connectFretePayments', JSON.stringify(payments));
+		};
+
+		// If ServerDB is available, attach adapter similar to index.html
+		(function attachServerAdapterLocal(){
+			if(!window.ServerDB) return;
+			const origGetDrivers = DB.getDrivers.bind(DB);
+			const origAddOrUpdate = DB.addOrUpdateDriver.bind(DB);
+			const origUpdateDriver = DB.updateDriver.bind(DB);
+			const origGetPayments = DB.getPayments.bind(DB);
+			const origAddPayment = DB.addPayment.bind(DB);
+
+			DB.getDrivers = function(){
+				try{ window.ServerDB.getDrivers().then(ds=>{ if(Array.isArray(ds)) localStorage.setItem('connectFreteDrivers', JSON.stringify(ds)); }).catch(()=>{}); }catch(e){}
+				return origGetDrivers();
+			};
+
+			DB.addOrUpdateDriver = function(driver){
+				// prefer server add (server accepts client-provided id); fallback to update
+				try{
+					(async ()=>{
+						if(window.ServerDB.addDriver){
+							try{ await window.ServerDB.addDriver(driver); return; }catch(e){}
+						}
+						if(window.ServerDB.updateDriver){
+							try{ await window.ServerDB.updateDriver(driver.id, driver); return; }catch(e){}
+						}
+					})().catch(()=>{});
+				}catch(e){}
+				return origAddOrUpdate(driver);
+			};
+
+			DB.updateDriver = function(id, updates){
+				try{
+					if(window.ServerDB.updateDriver){
+						(async ()=>{ try{ await window.ServerDB.updateDriver(id, updates); }catch(e){
+							// fallback: fetch drivers, merge and send addDriver
+							try{ const drivers = await window.ServerDB.getDrivers(); const d = (drivers||[]).find(x=>String(x.id)===String(id)); if(d){ Object.assign(d, updates); if(window.ServerDB.addDriver) await window.ServerDB.addDriver(d); } }catch(_){}
+						}})();
+					} else if(window.ServerDB.addDriver){
+						// fetch local, merge and call addDriver
+						const drivers = DB.getDrivers(); const d = drivers.find(x=>String(x.id)===String(id)); if(d){ Object.assign(d, updates); try{ window.ServerDB.addDriver(d).catch(()=>{}); }catch(e){} }
+					}
+				}catch(e){}
+				return origUpdateDriver(id, updates);
+			};
+
+			// Payments: prefer server
+			DB.getPayments = function(){
+				try{ window.ServerDB.getPayments().then(ps=>{ if(Array.isArray(ps)) localStorage.setItem('connectFretePayments', JSON.stringify(ps)); }).catch(()=>{}); }catch(e){}
+				return origGetPayments();
+			};
+
+			DB.addPayment = function(payment){
+				try{ (async ()=>{ if(window.ServerDB.addPayment){ try{ await window.ServerDB.addPayment(payment); return; }catch(e){} } })().catch(()=>{}); }catch(e){}
+				return origAddPayment(payment);
+			};
+
+			// Delete driver wrapper
+			if(typeof DB.deleteDriver !== 'function'){
+				DB.deleteDriver = function(id){
+					const drivers = this.getDrivers();
+					const filtered = drivers.filter(d => d.id !== id);
+					localStorage.setItem('connectFreteDrivers', JSON.stringify(filtered));
+				};
+			}
+
+			if(DB.deleteDriver){
+				const origDelete = DB.deleteDriver.bind(DB);
+				DB.deleteDriver = function(id){
+					try{ (async ()=>{ if(window.ServerDB.deleteDriver){ try{ await window.ServerDB.deleteDriver(id); }catch(e){} } })().catch(()=>{}); }catch(e){}
+					return origDelete(id);
+				};
+			}
+		})();
+
+		// We'll identify the driver by a query param ?id=123 or fallback to the first driver
+		function getQueryParam(name){
+			const params = new URLSearchParams(window.location.search);
+			return params.get(name);
+		}
+
+		let currentDriver = null;
+
+		function loadDriver(){
+			const params = new URLSearchParams(window.location.search);
+			const idParam = params.get('id');
+			const newParam = params.get('new');
+			const drivers = DB.getDrivers();
+
+			if (idParam) {
+				currentDriver = drivers.find(d=>String(d.id)===String(idParam));
+			}
+
+			// If asked specifically to create a new driver view, show empty form
+			if (newParam === '1') {
+				currentDriver = {
+					id: Date.now(), name:'', cpf:'', email:'', phone:'', vehicleType:'', vehiclePlate:'', photos: ['', '', ''], paymentStatus: 'pending'
+				};
+				// do not auto-save; wait for user action
+			}
+
+			// fallback: use first driver if exists and no id/new param set
+			if(!currentDriver && drivers.length>0){ currentDriver = drivers[0]; }
+
+			// If still no driver (empty DB) and not creating new, redirect back to index
+			if(!currentDriver && newParam !== '1'){
+				setTimeout(()=>{ window.location.href = 'index.html'; }, 800);
+				return;
+			}
+
+			// Populate fields
+			document.getElementById('driverName').value = currentDriver.name || '';
+			document.getElementById('driverCpf').value = currentDriver.cpf || '';
+			document.getElementById('driverEmail').value = currentDriver.email || '';
+			document.getElementById('driverPhone').value = currentDriver.phone || '';
+			document.getElementById('driverCity').value = currentDriver.city || '';
+			document.getElementById('driverState').value = currentDriver.state || '';
+			document.getElementById('vehicleTypeSelect').value = currentDriver.vehicleType || '';
+			document.getElementById('vehiclePlate').value = currentDriver.vehiclePlate || '';
+			document.getElementById('paymentStatus').value = currentDriver.paymentStatus || 'pending';
+
+			// Photos
+			for(let i=0;i<3;i++){
+				const img = document.getElementById('photo'+i);
+				const src = (currentDriver.photos && currentDriver.photos[i]) ? currentDriver.photos[i] : '';
+				if(src){ img.src = src; } else { img.src = 'https://via.placeholder.com/800x480?text=Sem+foto'; }
+			}
+		}
+
+		function readFileAsDataURL(file){
+			return new Promise((res,rej)=>{
+				const reader = new FileReader();
+				reader.onload = ()=>res(reader.result);
+				reader.onerror = ()=>rej(new Error('Erro ao ler arquivo'));
+				reader.readAsDataURL(file);
+			});
+		}
+
+		// Photo change handlers
+		for(let i=0;i<3;i++){
+			(function(i){
+				const changeBtn = document.getElementById('changePhoto'+i);
+				const input = document.getElementById('photoInput'+i);
+				const img = document.getElementById('photo'+i);
+				const removeBtn = document.getElementById('removePhoto'+i);
+				const dropzone = img.closest('.dropzone');
+
+				// Click image to open file picker
+				img.addEventListener('click', ()=> input.click());
+				changeBtn.addEventListener('click', ()=> input.click());
+
+				// File selected
+				input.addEventListener('change', async function(){
+					const file = input.files[0];
+					if(file){
+						const data = await readFileAsDataURL(file);
+						img.src = data;
+						// save immediately
+						if(!currentDriver.photos) currentDriver.photos = ['', '', ''];
+						currentDriver.photos[i] = data;
+						DB.addOrUpdateDriver(currentDriver);
+						alert('Foto salva');
+					}
+				});
+
+				// Drag & drop support
+				if(dropzone){
+					dropzone.addEventListener('dragover', function(e){ e.preventDefault(); dropzone.classList.add('ring','ring-2','ring-offset-2'); });
+					dropzone.addEventListener('dragleave', function(e){ dropzone.classList.remove('ring','ring-2','ring-offset-2'); });
+					dropzone.addEventListener('drop', async function(e){
+						e.preventDefault(); dropzone.classList.remove('ring','ring-2','ring-offset-2');
+						const file = e.dataTransfer.files[0];
+						if(file){
+							const data = await readFileAsDataURL(file);
+							img.src = data;
+							if(!currentDriver.photos) currentDriver.photos = ['', '', ''];
+							currentDriver.photos[i] = data;
+							DB.addOrUpdateDriver(currentDriver);
+							alert('Foto salva por drag & drop');
+						}
+					});
+				}
+
+				removeBtn.addEventListener('click', ()=>{
+					img.src = 'https://via.placeholder.com/800x480?text=Sem+foto';
+					if(!currentDriver.photos) currentDriver.photos = ['', '', ''];
+					currentDriver.photos[i] = '';
+					DB.addOrUpdateDriver(currentDriver);
+					alert('Foto removida');
+				});
+			})(i);
+		}
+
+		document.getElementById('saveDriver').addEventListener('click', ()=>{
+			// gather fields
+			currentDriver.name = document.getElementById('driverName').value;
+			currentDriver.cpf = document.getElementById('driverCpf').value;
+			currentDriver.email = document.getElementById('driverEmail').value;
+			currentDriver.phone = document.getElementById('driverPhone').value;
+			currentDriver.city = document.getElementById('driverCity').value;
+			currentDriver.state = document.getElementById('driverState').value;
+			currentDriver.vehicleType = document.getElementById('vehicleTypeSelect').value;
+			currentDriver.vehiclePlate = document.getElementById('vehiclePlate').value;
+
+			// Password handling: only save if provided and confirmed
+			const pwEl = document.getElementById('driverPassword');
+			const pwcEl = document.getElementById('driverConfirmPassword');
+			if(pwEl && pwcEl){
+				const pw = pwEl.value || '';
+				const pwc = pwcEl.value || '';
+				if(pw || pwc){
+					if(pw.length < 4){ alert('A senha deve ter ao menos 4 caracteres'); return; }
+					if(pw !== pwc){ alert('As senhas não coincidem'); return; }
+					currentDriver.password = pw;
+				}
+			}
+
+			DB.addOrUpdateDriver(currentDriver);
+			alert('Dados salvos com sucesso');
+		});
+
+		document.getElementById('savePhotos').addEventListener('click', ()=>{
+			for(let i=0;i<3;i++){
+				const img = document.getElementById('photo'+i);
+				// if dataset.pending is set (could be empty string for removal)
+				if(img.dataset.hasOwnProperty('pending')){
+					const val = img.dataset.pending || '';
+					if(!currentDriver.photos) currentDriver.photos = ['', '', ''];
+					currentDriver.photos[i] = val;
+					delete img.dataset.pending;
+				}
+			}
+			DB.addOrUpdateDriver(currentDriver);
+			alert('Fotos atualizadas com sucesso');
+		});
+
+		document.getElementById('deleteAccount').addEventListener('click', ()=>{
+			if(!confirm('Deseja realmente excluir esta conta de motorista? Esta ação não pode ser desfeita.')) return;
+			const drivers = DB.getDrivers().filter(d=>d.id !== currentDriver.id);
+			localStorage.setItem('connectFreteDrivers', JSON.stringify(drivers));
+			alert('Conta excluída');
+			window.location.href = 'index.html';
+		});
+
+		// Change password handler
+		document.getElementById('changePasswordBtn').addEventListener('click', ()=>{
+			const current = document.getElementById('currentPassword').value;
+			const nw = document.getElementById('newPassword').value;
+			const confirm = document.getElementById('confirmPassword').value;
+
+			if(!currentDriver) { alert('Nenhum motorista carregado'); return; }
+
+			// If driver has a password, require it
+			if(currentDriver.password && current !== currentDriver.password){
+				alert('Senha atual incorreta');
+				return;
+			}
+
+			if(!nw || nw.length < 4){
+				alert('A nova senha deve ter pelo menos 4 caracteres');
+				return;
+			}
+
+			if(nw !== confirm){
+				alert('A nova senha e a confirmação não coincidem');
+				return;
+			}
+
+			// Save using central DB helper to ensure consistent persistence
+			try {
+				currentDriver.password = nw;
+				// ensure id exists
+				if(!currentDriver.id) currentDriver.id = Date.now();
+				DB.addOrUpdateDriver(currentDriver);
+			} catch(err){
+				console.error('Erro ao salvar senha:', err);
+				alert('Erro ao salvar a nova senha. Veja o console para detalhes.');
+				return;
+			}
+
+			// Clear inputs and show confirmation
+			document.getElementById('currentPassword').value = '';
+			document.getElementById('newPassword').value = '';
+			document.getElementById('confirmPassword').value = '';
+			// reflect potential UI changes
+			if(document.getElementById('paymentStatus')) document.getElementById('paymentStatus').value = currentDriver.paymentStatus || 'pending';
+			alert('Senha alterada com sucesso');
+		});
+
+		// Payment modal controls and processing (local)
+		function showPaymentModalLocal(){
+			const settingsRaw = localStorage.getItem('connectFreteSettings');
+			const settings = settingsRaw ? JSON.parse(settingsRaw) : { subscriptionFee: 99.90 };
+			// Update buttons with bank/pix info
+			const pixBtn = document.querySelector("#paymentModalLocal button[onclick=\"processPaymentLocal('pix')\"]");
+			const creditBtn = document.querySelector("#paymentModalLocal button[onclick=\"processPaymentLocal('credit')\"]");
+			const debitBtn = document.querySelector("#paymentModalLocal button[onclick=\"processPaymentLocal('debit')\"]");
+			if(pixBtn){ pixBtn.innerHTML = `<i class="fab fa-pix mr-2"></i> Pagar com PIX${settings.pixKey ? ' - Chave: ' + settings.pixKey : ''}`; }
+			if(creditBtn){ creditBtn.innerHTML = `<i class="fas fa-credit-card mr-2"></i> Cartão de Crédito${settings.bankAccount ? ' - Conta: ' + settings.bankAccount : ''}`; }
+			if(debitBtn){ debitBtn.innerHTML = `<i class="fas fa-credit-card mr-2"></i> Cartão de Débito${settings.bankAccount ? ' - Conta: ' + settings.bankAccount : ''}`; }
+			document.getElementById('paymentModalLocal').classList.remove('hidden');
+			document.getElementById('paymentModalLocal').classList.add('flex');
+		}
+
+		function hidePaymentModalLocal(){
+			document.getElementById('paymentModalLocal').classList.add('hidden');
+			document.getElementById('paymentModalLocal').classList.remove('flex');
+		}
+
+		async function processPaymentLocal(method){
+			if(!currentDriver){ alert('Nenhum motorista carregado'); hidePaymentModalLocal(); return; }
+			const settingsRaw = localStorage.getItem('connectFreteSettings');
+			const settings = settingsRaw ? JSON.parse(settingsRaw) : { subscriptionFee: 99.90 };
+			const amount = settings.subscriptionFee || 99.90;
+
+			// If PIX, show details and confirm
+			if(method === 'pix'){
+				const key = settings.pixKey || '';
+				const name = settings.pixDisplayName || '';
+				const phone = settings.pixDisplayPhone || '';
+				const msg = `Pagar R$ ${amount.toFixed(2)} via PIX\n\nChave: ${key}\nNome: ${name}\nTelefone: ${phone}\n\nConfirmar pagamento?`;
+				if(!confirm(msg)){ hidePaymentModalLocal(); return; }
+			}
+
+			// simulate processing delay
+			setTimeout(()=>{
+				// add payment record with awaiting confirmation status
+				const paymentsRaw = localStorage.getItem('connectFretePayments') || '[]';
+				const payments = JSON.parse(paymentsRaw);
+				const payment = {
+					id: Date.now(),
+					driverId: currentDriver.id,
+					amount: amount,
+					method: method,
+					status: 'awaiting_confirmation',
+					date: new Date().toISOString()
+				};
+				payments.push(payment);
+				localStorage.setItem('connectFretePayments', JSON.stringify(payments));
+
+				// Do NOT mark driver as paid until admin confirms; keep paymentStatus pending
+				currentDriver.paymentStatus = 'pending';
+				currentDriver.paymentMethod = method;
+				DB.addOrUpdateDriver(currentDriver);
+
+				hidePaymentModalLocal();
+				// Inform user to confirm payment via email and thank them
+				const supportEmail = 'fretefacil85@gmail.com';
+				alert('Pagamento registrado. Por favor, envie o comprovante para ' + supportEmail + ' para confirmar o pagamento.\n\nObrigado! Suas informações aparecerão no site assim que o pagamento for confirmado.');
+				document.getElementById('paymentStatus').value = 'pending';
+			}, 1200);
+		}
+
+		// Wire pay button
+		document.getElementById('payFeeBtn').addEventListener('click', ()=>{
+			// set amount from settings
+			const settingsRaw = localStorage.getItem('connectFreteSettings');
+			const settings = settingsRaw ? JSON.parse(settingsRaw) : { subscriptionFee: 99.90 };
+			document.getElementById('paymentAmountLocal').textContent = `R$ ${settings.subscriptionFee.toFixed(2)}`;
+			showPaymentModalLocal();
+		});
+
+		// Initialize
+		document.addEventListener('DOMContentLoaded', ()=>{
+			loadDriver();
+			// Apply frontend settings (background, fee) from connectFreteSettings
+			try{
+				const settingsRaw = localStorage.getItem('connectFreteSettings');
+				const settings = settingsRaw ? JSON.parse(settingsRaw) : null;
+				if(settings){
+					// set page background if provided
+					if(settings.backgroundImage){
+						document.body.style.backgroundImage = `url('${settings.backgroundImage}')`;
+						document.body.style.backgroundSize = 'cover';
+						document.body.style.backgroundPosition = 'center';
+					}
+					// update payment amount displayed in modal/button
+					const payAmountEl = document.getElementById('paymentAmountLocal');
+					if(payAmountEl && typeof settings.subscriptionFee !== 'undefined') payAmountEl.textContent = `R$ ${settings.subscriptionFee.toFixed(2)}`;
+				}
+			}catch(e){ console.error('Erro ao aplicar configurações locais', e); }
+		});
+
+		// Phone mask helper: formats as (XX) XXXX-XXXX or (XX) XXXXX-XXXX
+		function formatPhoneDigitsLocal(v){
+			let d = (v || '').toString().replace(/\D/g,'');
+			if(d.length > 11) d = d.slice(0,11);
+			if(d.length > 10){
+				return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7,11)}`;
+			} else if(d.length > 6){
+				return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6,10)}`;
+			} else if(d.length > 2){
+				return `(${d.slice(0,2)}) ${d.slice(2)}`;
+			} else if(d.length>0){
+				return `(${d}`;
+			}
+			return '';
+		}
+
+		function attachPhoneMaskLocal(id){
+			const el = document.getElementById(id);
+			if(!el) return;
+			el.addEventListener('input', (e)=>{
+				const pos = el.selectionStart;
+				const oldLen = el.value.length;
+				el.value = formatPhoneDigitsLocal(el.value);
+				const newLen = el.value.length;
+				const diff = newLen - oldLen;
+				try { el.selectionStart = el.selectionEnd = pos + diff; } catch(err){}
+			});
+			el.addEventListener('blur', ()=>{ el.value = formatPhoneDigitsLocal(el.value); });
+		}
+
+		attachPhoneMaskLocal('driverPhone');
+
+
+
+	</script>
+
+	<!-- Floating fallback removed -->
+
+	<script>
+	
+	</script>
+</body>
+</html>
+
