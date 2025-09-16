@@ -815,6 +815,34 @@
             }
         })();
 
+        // If a driver is updated and it is the currently approved driver, refresh the approved-driver localStorage and persist to server
+        try{
+            if(DB.updateDriver){
+                const origUpdateDriver = DB.updateDriver.bind(DB);
+                DB.updateDriver = function(id, updates){
+                    const res = origUpdateDriver(id, updates);
+                    try{
+                        const approvedRaw = localStorage.getItem('connectFreteLastApprovedDriver');
+                        if(approvedRaw){
+                            const approved = JSON.parse(approvedRaw);
+                            if(String(approved.id) === String(id)){
+                                // find latest driver data and refresh approved entry
+                                const drivers = DB.getDrivers();
+                                const d = drivers.find(x => String(x.id) === String(id));
+                                if(d){
+                                    const updatedApproved = Object.assign({}, approved, d, { paymentStatus: d.paymentStatus || 'paid' });
+                                    localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(updatedApproved));
+                                    // persist to server if available
+                                    try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(updatedApproved).catch(()=>{}); } }catch(e){}
+                                }
+                            }
+                        }
+                    }catch(e){}
+                    return res;
+                };
+            }
+    }catch(e){}
+
         // Driver session helpers (persist login between pages)
         function setDriverSession(driver) {
             if (!driver || !driver.id) return;
