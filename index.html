@@ -734,8 +734,10 @@
                     const last = await window.ServerDB.getApprovedDriver();
                     if(last) {
                         localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(last));
+                        try{ if(typeof window.markDriverRecentlyUpdated === 'function' && last && last.id) window.markDriverRecentlyUpdated(last.id); }catch(e){}
                     } else {
                         // server has no approved driver — ensure local cache is cleared
+                        try{ const existing = localStorage.getItem('connectFreteLastApprovedDriver'); if(existing){ try{ const parsedOld = JSON.parse(existing); if(parsedOld && parsedOld.id && typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(parsedOld.id); }catch(_){} } }catch(e){}
                         localStorage.removeItem('connectFreteLastApprovedDriver');
                     }
                 }
@@ -860,6 +862,7 @@
                                 if(d){
                                     const updatedApproved = Object.assign({}, approved, d, { paymentStatus: d.paymentStatus || 'paid' });
                                     localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(updatedApproved));
+                                    try{ if(typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(updatedApproved.id); }catch(e){}
                                                     try{ renderApprovedDriverCard(); }catch(e){}
                                     // persist to server if available
                                     try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(updatedApproved).catch(()=>{}); } }catch(e){}
@@ -881,6 +884,7 @@
                         if(approvedRaw){
                             const approved = JSON.parse(approvedRaw);
                             if(String(approved.id) === String(id)){
+                                try{ const parsedOld = JSON.parse(approvedRaw); if(parsedOld && parsedOld.id && typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(parsedOld.id); }catch(e){}
                                 localStorage.removeItem('connectFreteLastApprovedDriver');
                                 try{ renderApprovedDriverCard(); }catch(e){}
                                 try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(null).catch(()=>{}); } }catch(e){}
@@ -1385,6 +1389,15 @@
                             }
 
                             // If we have the full driver, prefill search filters (vehicleType and city) and run search
+                            // But first, check if this driver was recently updated locally — if so, prefer local state for a short window
+                            try{
+                                const recent = window._recentDriverUpdates || {};
+                                const recentTs = recent[String(data.id)];
+                                if(recentTs && (Date.now() - recentTs) < 5000){
+                                    // skip applying server-provided approved driver because a local update happened moments ago
+                                    return;
+                                }
+                            }catch(e){}
                             const toShow = full || data;
                             try{
                                 if(document.getElementById('vehicleType') && toShow.vehicleType) document.getElementById('vehicleType').value = toShow.vehicleType;
@@ -1917,12 +1930,32 @@
             let _approvedRenderTimer = null;
             const _onApprovedStorage = (ev)=>{
                 if(ev.key !== 'connectFreteLastApprovedDriver') return;
+                // mark recent update so poller won't overwrite a freshly-updated approved entry
+                try{
+                    if(ev.newValue){
+                        try{
+                            const parsed = JSON.parse(ev.newValue);
+                            if(parsed && parsed.id){ window._recentDriverUpdates = window._recentDriverUpdates || {}; window._recentDriverUpdates[String(parsed.id)] = Date.now(); }
+                        }catch(_){}
+                    } else if(ev.oldValue){
+                        // if an approved entry was removed, mark it recent to avoid immediate clearing by poller in other tabs
+                        try{ const parsedOld = JSON.parse(ev.oldValue); if(parsedOld && parsedOld.id){ window._recentDriverUpdates = window._recentDriverUpdates || {}; window._recentDriverUpdates[String(parsedOld.id)] = Date.now(); } }catch(_){}
+                    }
+                }catch(e){}
                 if(_approvedRenderTimer) clearTimeout(_approvedRenderTimer);
                 _approvedRenderTimer = setTimeout(()=>{ renderApprovedDriverCard(); _approvedRenderTimer = null; }, 120);
             };
             // ensure we don't add multiple identical listeners
             window.removeEventListener('storage', _onApprovedStorage);
             window.addEventListener('storage', _onApprovedStorage);
+        }catch(e){}
+
+        // Global helper to mark drivers as recently-updated so poller/remote merges avoid clobbering
+        try{
+            if(!window._recentDriverUpdates) window._recentDriverUpdates = window._recentDriverUpdates || {};
+            if(typeof window.markDriverRecentlyUpdated !== 'function'){
+                window.markDriverRecentlyUpdated = function(id){ try{ window._recentDriverUpdates = window._recentDriverUpdates || {}; window._recentDriverUpdates[String(id)] = Date.now(); }catch(e){} };
+            }
         }catch(e){}
 
         // Small helper to add a timeout to promises to avoid indefinite hangs
@@ -2044,8 +2077,10 @@
                             ts: Date.now()
                         };
                         localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(approved));
+                        try{ if(typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(approved.id); }catch(e){}
                         approvedPayload = approved;
                     } else {
+                        try{ const cur = localStorage.getItem('connectFreteLastApprovedDriver'); if(cur){ try{ const parsed = JSON.parse(cur); if(parsed && parsed.id && typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(parsed.id); }catch(_){} } }catch(e){}
                         localStorage.removeItem('connectFreteLastApprovedDriver');
                         approvedPayload = null;
                     }
@@ -2404,26 +2439,7 @@
             localStorage.setItem('connectFreteSettings', JSON.stringify(settings));
             try{ if(typeof DB !== 'undefined' && DB && typeof DB.updateSettings === 'function'){ DB.updateSettings(settings); } }catch(e){}
 
-                try{
-                    if(newStatus === 'paid'){
-                        const approved = {
-                            id: driver.id,
-                            name: driver.name,
-                            phone: driver.phone,
-                            photos: driver.photos || [],
-                            vehicleType: driver.vehicleType,
-                            vehiclePlate: driver.vehiclePlate,
-                            city: driver.city || '' ,
-                            paymentStatus: 'paid',
-                            ts: Date.now()
-                        };
-                        localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(approved));
-                    } else {
-                        localStorage.removeItem('connectFreteLastApprovedDriver');
-                    }
-                    // ensure UI reflects the change immediately in this tab
-                    try{ renderApprovedDriverCard(); }catch(e){}
-                }catch(e){ /* Could not set approved driver flag (suppressed) */ }
+                // admin credentials updated
             try{ renderPaymentLogs(); } catch(e){}
         }
 
