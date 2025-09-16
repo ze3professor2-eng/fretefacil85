@@ -1751,14 +1751,14 @@
 
         // Helper to wire the table button to the async toggle and provide immediate UI feedback
         function toggleDriverStatusAsync(btn, driverId){
-            if(!btn) return;
+            if(!btn) return Promise.resolve();
             // prevent double clicks
-            if(btn.disabled) return;
+            if(btn.disabled) return Promise.resolve();
             const origText = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Aguarde...';
-            (async ()=>{
-                try{ await toggleDriverStatus(driverId); }catch(e){ console.error(e); alert('Erro ao processar ação'); }
+            return (async ()=>{
+                try{ await toggleDriverStatus(driverId); }catch(e){ console.error(e); alert('Erro ao processar ação'); throw e; }
                 finally{ btn.disabled = false; btn.textContent = origText; }
             })();
         }
