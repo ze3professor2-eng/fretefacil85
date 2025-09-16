@@ -1850,7 +1850,7 @@
                         </div>
                     </div>
                 `;
-            }catch(e){ console.warn('renderApprovedDriverCard error', e); }
+            }catch(e){ /* renderApprovedDriverCard error suppressed in production */ }
         }
 
         // Initialize approved driver UI and listen for storage events
@@ -1882,13 +1882,13 @@
         }
 
         async function toggleDriverStatus(driverId) {
-            console.log('toggleDriverStatus called for id=', driverId, 'window.ServerDB present=', !!window.ServerDB, 'typeof updateDriver=', window.ServerDB && typeof window.ServerDB.updateDriver);
+        // debug logs removed
             let drivers = DB.getDrivers();
             let driver = drivers.find(d => String(d.id) === String(driverId));
 
             // If the driver is missing locally, attempt to fetch from server (if available)
             if (!driver) {
-                console.warn('Driver not found locally for id=', driverId, '— attempting to fetch from server');
+                // driver missing locally — attempting to fetch from server
                 try{
                     if(window.ServerDB && typeof window.ServerDB.getDrivers === 'function'){
                         const remoteDrivers = await withTimeout(window.ServerDB.getDrivers(), 8000, 'ServerDB.getDrivers');
@@ -1910,11 +1910,11 @@
                         }
                     }
                 }catch(fetchErr){
-                    console.warn('Failed to fetch drivers from server', fetchErr);
+                    // failed to fetch drivers from server (suppressed)
                 }
             }
 
-            console.log('toggleDriverStatus resolved driver=', driver);
+            // toggleDriverStatus: resolved driver (log suppressed)
 
             if (!driver) return;
 
@@ -1931,7 +1931,7 @@
                         // ensure server receives id and payload and await confirmation
                         const resp = await withTimeout(window.ServerDB.updateDriver(driverId, { paymentStatus: newStatus }), 8000, 'ServerDB.updateDriver');
                         // optional: check resp.ok or returned payload
-                        console.log('ServerDB.updateDriver response:', resp);
+                        // ServerDB.updateDriver response suppressed
                     }catch(e){
                         console.error('ServerDB.updateDriver failed, falling back to fetch', e);
                         // fallback to direct fetch
@@ -1981,7 +1981,7 @@
                     } else {
                         localStorage.removeItem('connectFreteLastApprovedDriver');
                     }
-                }catch(e){ console.warn('Could not set approved driver flag', e); }
+                }catch(e){ /* Could not set approved driver flag (suppressed) */ }
 
                 loadAdminPanelData();
                 alert(`Status do motorista ${driver.name} atualizado para ${newStatus === 'paid' ? 'Pago' : 'Pendente'}`);
@@ -2232,7 +2232,7 @@
                             const totalPix = paymentsServer.filter(p => String(p.driverId) === String(d.id) && p.status === 'completed' && String(p.method || p.paymentMethod || '').toLowerCase() === 'pix').reduce((s,p)=> s + (p.amount || 0), 0);
                             return { id: d.id, name: d.name, cpf: d.cpf, email: d.email, phone: d.phone, city: d.city, state: d.state, vehicleType: d.vehicleType, vehiclePlate: d.vehiclePlate, paymentMethod: d.paymentMethod||'', totalPaid: totalPaid, totalPix: totalPix, registrationDate: d.registrationDate || '' };
                         });
-                        console.log('PDF items (server):', items);
+                        // PDF items (server) log suppressed
                         renderPdf(items);
                     }).catch(err=>{
                         console.error('Erro obtendo dados para PDF no servidor', err);
@@ -2246,7 +2246,7 @@
                             try{ if(last && last.date) liberationDate = new Date(last.date).toLocaleString(); }catch(e){}
                             return { id: d.id, name: d.name, cpf: d.cpf, email: d.email, phone: d.phone, city: d.city, state: d.state, vehicleType: d.vehicleType, vehiclePlate: d.vehiclePlate, paymentMethod: d.paymentMethod||'', totalPaid: totalPaid, totalPix: totalPix, registrationDate: d.registrationDate || '' };
                         });
-                        console.log('PDF items (fallback):', items);
+                        // PDF items (fallback) log suppressed
                         renderPdf(items);
                     });
                     return;
@@ -2263,7 +2263,7 @@
                     try{ if(last && last.date) liberationDate = new Date(last.date).toLocaleString(); }catch(e){}
                     return { id: d.id, name: d.name, cpf: d.cpf, email: d.email, phone: d.phone, city: d.city, state: d.state, vehicleType: d.vehicleType, vehiclePlate: d.vehiclePlate, paymentMethod: d.paymentMethod||'', totalPaid: totalPaid, totalPix: totalPix, registrationDate: d.registrationDate || '', liberationDate: liberationDate };
                 });
-                console.log('PDF items (client-only):', items);
+                // PDF items (client-only) log suppressed
                 renderPdf(items);
             }catch(err){ console.error('Erro gerando PDF (printable) do relatório', err); alert('Erro ao gerar PDF. Veja o console.'); }
         }
@@ -2354,7 +2354,7 @@
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             updateFrontendSettings();
-            console.log('Connect Frete initialized');
+            // Connect Frete initialized
             // reflect driver session in nav
             try{ renderDriverNavState(); } catch(e){}
             // Seed helper: use ?seed=1 to create a test driver and open motorista profile
