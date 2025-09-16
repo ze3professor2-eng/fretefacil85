@@ -732,7 +732,12 @@
             try{
                 if(window.ServerDB && typeof window.ServerDB.getApprovedDriver === 'function'){
                     const last = await window.ServerDB.getApprovedDriver();
-                    if(last) localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(last));
+                    if(last) {
+                        localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(last));
+                    } else {
+                        // server has no approved driver — ensure local cache is cleared
+                        localStorage.removeItem('connectFreteLastApprovedDriver');
+                    }
                 }
             }catch(e){ /* ignore */ }
         })();
@@ -1303,7 +1308,14 @@
                     const r = await fetch('/api/approved-driver');
                     if(!r.ok) return;
                     const data = await r.json();
-                    if(!data) return;
+                    // if server returned null, clear local approved driver and UI
+                    if(!data){
+                        try{ localStorage.removeItem('connectFreteLastApprovedDriver'); }catch(e){}
+                        try{ renderApprovedDriverCard(); }catch(e){}
+                        // bump lastSeenTs to avoid immediate reprocessing
+                        lastSeenTs = Date.now();
+                        return;
+                    }
                     if(data.ts && data.ts > lastSeenTs){
                             lastSeenTs = data.ts;
                             // Try to find full driver info locally first
@@ -1514,7 +1526,11 @@
                         if(!e || !e.key) return;
                         if(e.key === 'connectFreteLastApprovedDriver'){
                             const raw = e.newValue || localStorage.getItem('connectFreteLastApprovedDriver');
-                            if(!raw) return; // removed or cleared
+                            if(!raw){
+                                // cleared — update UI to remove the card
+                                try{ renderApprovedDriverCard(); }catch(err){}
+                                return; // removed or cleared
+                            }
                             const approved = JSON.parse(raw);
                             // Try to find the full driver object in local DB (to get photos etc.)
                             (async function(){
