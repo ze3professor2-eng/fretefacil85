@@ -1765,8 +1765,36 @@
 
         async function toggleDriverStatus(driverId) {
             console.log('toggleDriverStatus called for id=', driverId, 'window.ServerDB present=', !!window.ServerDB, 'typeof updateDriver=', window.ServerDB && typeof window.ServerDB.updateDriver);
-            const drivers = DB.getDrivers();
-            const driver = drivers.find(d => d.id === driverId);
+            let drivers = DB.getDrivers();
+            let driver = drivers.find(d => d.id === driverId);
+
+            // If the driver is missing locally, attempt to fetch from server (if available)
+            if (!driver) {
+                console.warn('Driver not found locally for id=', driverId, '— attempting to fetch from server');
+                try{
+                    if(window.ServerDB && typeof window.ServerDB.getDrivers === 'function'){
+                        const remoteDrivers = await window.ServerDB.getDrivers();
+                        if(Array.isArray(remoteDrivers) && remoteDrivers.length){
+                            localStorage.setItem('connectFreteDrivers', JSON.stringify(remoteDrivers));
+                            drivers = remoteDrivers;
+                            driver = drivers.find(d => d.id === driverId);
+                        }
+                    } else {
+                        // fallback to direct fetch
+                        const resp = await fetch('/api/drivers');
+                        if(resp.ok){
+                            const remoteDrivers = await resp.json();
+                            if(Array.isArray(remoteDrivers) && remoteDrivers.length){
+                                localStorage.setItem('connectFreteDrivers', JSON.stringify(remoteDrivers));
+                                drivers = remoteDrivers;
+                                driver = drivers.find(d => d.id === driverId);
+                            }
+                        }
+                    }
+                }catch(fetchErr){
+                    console.warn('Failed to fetch drivers from server', fetchErr);
+                }
+            }
 
             console.log('toggleDriverStatus resolved driver=', driver);
 
