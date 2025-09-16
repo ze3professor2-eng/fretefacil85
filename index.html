@@ -759,10 +759,14 @@
                 return function(){
                     const args = Array.from(arguments);
                     try{
-                        const payload = args[0];
-                        // call server async
+                        // call server async forwarding all arguments so functions like updateDriver(id, updates)
+                        // receive both id and update payload on the server
                         (async ()=>{
-                            try{ await window.ServerDB[serverFnName](payload); }catch(e){ /* ignore - fallback will run */ }
+                            try{
+                                if(window.ServerDB && typeof window.ServerDB[serverFnName] === 'function'){
+                                    await window.ServerDB[serverFnName].apply(window.ServerDB, args);
+                                }
+                            }catch(e){ /* ignore - fallback will run */ }
                         })();
                     }catch(e){}
                     // always perform local write to keep UI consistent
