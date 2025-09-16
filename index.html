@@ -1759,7 +1759,7 @@
                 const d = JSON.parse(json);
                 // build photos carousel/simple list
                 const photos = (d.photos && Array.isArray(d.photos)) ? d.photos.filter(Boolean) : [];
-                const photoHtml = photos.length ? photos.slice(0,3).map(p=>`<img src="${p}" class="w-20 h-14 object-cover rounded mr-2"/>`).join('') : '';
+                const photoHtml = photos.length ? photos.slice(0,3).map(p=>`<img src="${p}" class="w-20 h-14 object-cover rounded mr-2"/>`).join('') : '<div class="w-20 h-14 bg-gray-700 rounded mr-2 flex items-center justify-center text-xs text-gray-300">Sem foto</div>';
                 const phoneDigits = (d.phone||'').toString().replace(/\D/g,'');
                 const waNumber = phoneDigits.length===10||phoneDigits.length===11 ? '55'+phoneDigits : phoneDigits;
                 container.innerHTML = `
@@ -1768,7 +1768,8 @@
                         <div class="flex-1 text-sm">
                             <div class="font-semibold">${d.name || ''}</div>
                             <div class="text-gray-300">${d.city || ''}</div>
-                            <div class="text-gray-300">${d.paymentStatus === 'paid' ? 'Pago' : ''}</div>
+                            <div class="text-gray-300">${d.vehicleType ? (d.vehicleType + (d.vehiclePlate ? ' • ' + d.vehiclePlate : '')) : ''}</div>
+                            <div class="text-gray-300">${d.phone || ''}</div>
                         </div>
                         <div class="ml-3">
                             <a href="https://wa.me/${waNumber}?text=${encodeURIComponent('Olá, vi seu perfil no Connect Frete') }" target="_blank" class="px-3 py-1 bg-green-600 rounded text-sm">WhatsApp</a>
@@ -1880,18 +1881,19 @@
 
                 // manage storage flag for cross-tab notification
                 try{
-                    if(newStatus === 'paid'){
-                        const approved = {
-                            id: driver.id,
-                            name: driver.name,
-                            phone: driver.phone,
-                            vehicleType: driver.vehicleType,
-                            vehiclePlate: driver.vehiclePlate,
-                            city: driver.city || '' ,
-                            paymentStatus: 'paid',
-                            ts: Date.now()
-                        };
-                        localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(approved));
+                        if(newStatus === 'paid'){
+                            const approved = {
+                                id: driver.id,
+                                name: driver.name,
+                                phone: driver.phone,
+                                photos: driver.photos || driver.photos || [],
+                                vehicleType: driver.vehicleType,
+                                vehiclePlate: driver.vehiclePlate,
+                                city: driver.city || '' ,
+                                paymentStatus: 'paid',
+                                ts: Date.now()
+                            };
+                            localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(approved));
                     } else {
                         localStorage.removeItem('connectFreteLastApprovedDriver');
                     }
