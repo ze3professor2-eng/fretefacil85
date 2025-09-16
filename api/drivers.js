@@ -20,6 +20,8 @@ module.exports = async function (req, res) {
     if(method === 'PUT'){
       const id = req.query.id || (req.body && req.body.id);
       const updates = req.body || {};
+      // Debug instrumentation: log incoming PUT and payload
+      console.log('PUT /api/drivers received', { id, updates });
       const fields = [];
       const values = [];
       let idx = 1;
@@ -32,7 +34,8 @@ module.exports = async function (req, res) {
       values.push(id);
       const sql = `UPDATE drivers SET ${fields.join(',')} WHERE id = $${idx}`;
       await query(sql, values);
-      res.status(200).json({ok:true});
+      // Echo back received data to help client-side debugging
+      res.status(200).json({ok:true, received: { id, updates }});
       return;
     }
 
