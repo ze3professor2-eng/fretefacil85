@@ -1778,8 +1778,19 @@
             try{
                 // If server adapter is available, prefer to perform the update on server first
                 if(window.ServerDB && typeof window.ServerDB.updateDriver === 'function'){
-                    // ensure server receives id and payload
-                    await window.ServerDB.updateDriver(driverId, { paymentStatus: newStatus });
+                    try{
+                        // ensure server receives id and payload and await confirmation
+                        const resp = await window.ServerDB.updateDriver(driverId, { paymentStatus: newStatus });
+                        // optional: check resp.ok or returned payload
+                        console.log('ServerDB.updateDriver response:', resp);
+                    }catch(e){
+                        console.error('ServerDB.updateDriver failed, falling back to fetch', e);
+                        // fallback to direct fetch
+                        const resp = await fetch('/api/drivers?id='+encodeURIComponent(driverId), {
+                            method: 'PUT', headers: {'content-type':'application/json'}, body: JSON.stringify({ id: driverId, paymentStatus: newStatus })
+                        });
+                        if(!resp.ok) throw new Error('server update failed');
+                    }
                 } else {
                     // fallback: try calling the API directly
                     try{
