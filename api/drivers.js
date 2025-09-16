@@ -22,12 +22,31 @@ module.exports = async function (req, res) {
       const updates = req.body || {};
       // Debug instrumentation: log incoming PUT and payload
       console.log('PUT /api/drivers received', { id, updates });
+
+      // map common camelCase keys from client to DB column names
+      const keyMap = {
+        paymentStatus: 'paymentstatus',
+        paymentMethod: 'paymentmethod',
+        vehicleType: 'vehicletype',
+        vehiclePlate: 'vehicleplate',
+        registrationDate: 'registrationdate',
+        billingType: 'billingtype',
+        vehicleType: 'vehicletype'
+      };
+
       const fields = [];
       const values = [];
       let idx = 1;
       for(const k of Object.keys(updates)){
-        fields.push(`${k} = $${idx}`);
-        values.push(updates[k]);
+        // translate key to DB column name if needed
+        const col = keyMap[k] || k.toLowerCase();
+        fields.push(`${col} = $${idx}`);
+        let val = updates[k];
+        // serialize photos array if present
+        if(col === 'photos' && val && typeof val !== 'string'){
+          try{ val = JSON.stringify(val); }catch(e){}
+        }
+        values.push(val);
         idx++;
       }
       if(fields.length===0){ res.status(400).json({error:'no updates'}); return; }
