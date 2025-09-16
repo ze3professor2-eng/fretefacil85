@@ -728,6 +728,13 @@
                     }
                 }catch(e){ /* ignore - keep localStorage */ }
             }
+            // fetch last approved driver from server to populate localStorage for other devices
+            try{
+                if(window.ServerDB && typeof window.ServerDB.getApprovedDriver === 'function'){
+                    const last = await window.ServerDB.getApprovedDriver();
+                    if(last) localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(last));
+                }
+            }catch(e){ /* ignore */ }
         })();
 
         // Adapter: if ServerDB is available, wrap DB methods to proxy to server but keep localStorage fallback.
@@ -1880,7 +1887,17 @@
                 }
 
                 // Update local cache after server confirms (or fallback)
+
                 try{ DB.updateDriver(driverId, { paymentStatus: newStatus }); }catch(e){}
+
+                // Persist approved driver on server so other devices/browsers can show it
+                try{
+                    if(newStatus === 'paid' && window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){
+                        (async ()=>{
+                            try{ await window.ServerDB.setApprovedDriver(JSON.parse(localStorage.getItem('connectFreteLastApprovedDriver') || 'null')); }catch(_){ }
+                        })();
+                    }
+                }catch(e){}
 
                 // manage storage flag for cross-tab notification
                 try{
