@@ -758,9 +758,32 @@
                 return originalGetSettings();
             };
 
+            // keep a short-lived map of recent updates so we don't overwrite freshly changed drivers with stale server responses
+            window._recentDriverUpdates = window._recentDriverUpdates || {};
+
+            function markDriverRecentlyUpdated(id){ try{ window._recentDriverUpdates = window._recentDriverUpdates || {}; window._recentDriverUpdates[String(id)] = Date.now(); }catch(e){} }
+
             DB.getDrivers = function(){
-                // fire-and-forget update from server to local cache
-                try{ window.ServerDB.getDrivers().then(ds => { if(Array.isArray(ds)) localStorage.setItem('connectFreteDrivers', JSON.stringify(ds)); }).catch(()=>{}); }catch(e){}
+                // fire-and-forget update from server to local cache but avoid clobbering very recent local edits
+                try{
+                    window.ServerDB.getDrivers().then(ds => {
+                        if(!Array.isArray(ds)) return;
+                        try{
+                            const local = originalGetDrivers() || [];
+                            const merged = local.slice();
+                            const recent = window._recentDriverUpdates || {};
+                            ds.forEach(remote => {
+                                const rid = String(remote.id);
+                                const recentTs = recent[rid];
+                                // If we updated this driver locally less than 5s ago, skip overwriting it
+                                if(recentTs && (Date.now() - recentTs) < 5000) return;
+                                const idx = merged.findIndex(d => String(d.id) === rid);
+                                if(idx === -1) merged.push(remote); else merged[idx] = remote;
+                            });
+                            localStorage.setItem('connectFreteDrivers', JSON.stringify(merged));
+                        }catch(e){}
+                    }).catch(()=>{});
+                }catch(e){}
                 return originalGetDrivers();
             };
 
@@ -1474,10 +1497,10 @@
                     driverElement.innerHTML = `
                         <div class="flex items-start justify-between">
                             <div class="flex items-start">
-                                <div class="grid grid-cols-3 gap-2 mr-4">
-                                    <img src="${photos[0]}" alt="Foto 1" class="w-20 h-16 object-cover rounded">
-                                    <img src="${photos[1]}" alt="Foto 2" class="w-20 h-16 object-cover rounded">
-                                    <img src="${photos[2]}" alt="Foto 3" class="w-20 h-16 object-cover rounded">
+                                <div class="flex gap-2 mr-4 items-center">
+                                    <img src="${photos[0]}" alt="Foto 1" class="w-20 h-16 object-cover rounded mr-2">
+                                    <img src="${photos[1]}" alt="Foto 2" class="w-20 h-16 object-cover rounded mr-2">
+                                    <img src="${photos[2]}" alt="Foto 3" class="w-20 h-16 object-cover rounded mr-2">
                                 </div>
                                 <div>
                                     <h4 class="font-semibold">${driver.name}</h4>
@@ -1513,10 +1536,10 @@
                     driverElement.innerHTML = `
                         <div class="flex items-start justify-between">
                             <div class="flex items-start">
-                                <div class="grid grid-cols-3 gap-2 mr-4">
-                                    <img src="${photos[0]}" alt="Foto 1" class="w-20 h-16 object-cover rounded">
-                                    <img src="${photos[1]}" alt="Foto 2" class="w-20 h-16 object-cover rounded">
-                                    <img src="${photos[2]}" alt="Foto 3" class="w-20 h-16 object-cover rounded">
+                                <div class="flex gap-2 mr-4 items-center">
+                                    <img src="${photos[0]}" alt="Foto 1" class="w-20 h-16 object-cover rounded mr-2">
+                                    <img src="${photos[1]}" alt="Foto 2" class="w-20 h-16 object-cover rounded mr-2">
+                                    <img src="${photos[2]}" alt="Foto 3" class="w-20 h-16 object-cover rounded mr-2">
                                 </div>
                                 <div>
                                     <h4 class="font-semibold">${driver.name}</h4>
