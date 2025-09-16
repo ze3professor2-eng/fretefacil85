@@ -1749,19 +1749,39 @@
             if (mainBg && settings.backgroundImage) mainBg.style.backgroundImage = `url('${settings.backgroundImage}')`;
         }
 
-        function toggleDriverStatus(driverId) {
+        async function toggleDriverStatus(driverId) {
             const drivers = DB.getDrivers();
             const driver = drivers.find(d => d.id === driverId);
-            
-            if (driver) {
-                const newStatus = driver.paymentStatus === 'paid' ? 'pending' : 'paid';
-                DB.updateDriver(driverId, { paymentStatus: newStatus });
-                // When a driver is approved (paid), write a short-lived flag to localStorage so other tabs
-                // (for example the public `index.html`) can react via the storage event and update the
-                // search box / results immediately. Remove the flag when driver is blocked again.
+
+            if (!driver) return;
+
+            const newStatus = driver.paymentStatus === 'paid' ? 'pending' : 'paid';
+
+            // Provide simple feedback while we perform the server update
+            const prevCursor = document.body.style.cursor;
+            document.body.style.cursor = 'wait';
+
+            try{
+                // If server adapter is available, prefer to perform the update on server first
+                if(window.ServerDB && typeof window.ServerDB.updateDriver === 'function'){
+                    // ensure server receives id and payload
+                    await window.ServerDB.updateDriver(driverId, { paymentStatus: newStatus });
+                } else {
+                    // fallback: try calling the API directly
+                    try{
+                        const resp = await fetch('/api/drivers?id='+encodeURIComponent(driverId), {
+                            method: 'PUT', headers: {'content-type':'application/json'}, body: JSON.stringify({ id: driverId, paymentStatus: newStatus })
+                        });
+                        if(!resp.ok) throw new Error('server update failed');
+                    }catch(e){ /* ignore and fallback to local update */ }
+                }
+
+                // Update local cache after server confirms (or fallback)
+                try{ DB.updateDriver(driverId, { paymentStatus: newStatus }); }catch(e){}
+
+                // manage storage flag for cross-tab notification
                 try{
                     if(newStatus === 'paid'){
-                        // store minimal driver info for quick display
                         const approved = {
                             id: driver.id,
                             name: driver.name,
@@ -1777,8 +1797,14 @@
                         localStorage.removeItem('connectFreteLastApprovedDriver');
                     }
                 }catch(e){ console.warn('Could not set approved driver flag', e); }
+
                 loadAdminPanelData();
                 alert(`Status do motorista ${driver.name} atualizado para ${newStatus === 'paid' ? 'Pago' : 'Pendente'}`);
+            }catch(err){
+                console.error('Erro ao atualizar status do motorista', err);
+                alert('Falha ao atualizar status no servidor. Tente novamente.');
+            }finally{
+                document.body.style.cursor = prevCursor || '';
             }
         }
 
