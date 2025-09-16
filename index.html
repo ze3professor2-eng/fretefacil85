@@ -1749,6 +1749,38 @@
             if (mainBg && settings.backgroundImage) mainBg.style.backgroundImage = `url('${settings.backgroundImage}')`;
         }
 
+        // Render the last approved driver (appears in the search box area)
+        function renderApprovedDriverCard(){
+            try{
+                const json = localStorage.getItem('connectFreteLastApprovedDriver');
+                const container = document.getElementById('approvedDriverCard');
+                if(!container) return;
+                if(!json){ container.innerHTML = ''; return; }
+                const d = JSON.parse(json);
+                // build photos carousel/simple list
+                const photos = (d.photos && Array.isArray(d.photos)) ? d.photos.filter(Boolean) : [];
+                const photoHtml = photos.length ? photos.slice(0,3).map(p=>`<img src="${p}" class="w-20 h-14 object-cover rounded mr-2"/>`).join('') : '';
+                const phoneDigits = (d.phone||'').toString().replace(/\D/g,'');
+                const waNumber = phoneDigits.length===10||phoneDigits.length===11 ? '55'+phoneDigits : phoneDigits;
+                container.innerHTML = `
+                    <div class="p-3 bg-white/5 rounded flex items-center">
+                        <div class="mr-3 flex-shrink-0">${photoHtml}</div>
+                        <div class="flex-1 text-sm">
+                            <div class="font-semibold">${d.name || ''}</div>
+                            <div class="text-gray-300">${d.city || ''}</div>
+                            <div class="text-gray-300">${d.paymentStatus === 'paid' ? 'Pago' : ''}</div>
+                        </div>
+                        <div class="ml-3">
+                            <a href="https://wa.me/${waNumber}?text=${encodeURIComponent('Olá, vi seu perfil no Connect Frete') }" target="_blank" class="px-3 py-1 bg-green-600 rounded text-sm">WhatsApp</a>
+                        </div>
+                    </div>
+                `;
+            }catch(e){ console.warn('renderApprovedDriverCard error', e); }
+        }
+
+        // Initialize approved driver UI and listen for storage events
+        try{ renderApprovedDriverCard(); window.addEventListener('storage', (ev)=>{ if(ev.key === 'connectFreteLastApprovedDriver') renderApprovedDriverCard(); }); }catch(e){}
+
         // Small helper to add a timeout to promises to avoid indefinite hangs
         function withTimeout(promise, ms = 8000, label = ''){
             let timer;
