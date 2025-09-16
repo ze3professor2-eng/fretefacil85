@@ -33,3 +33,5 @@ Passos rápidos (Windows PowerShell):
    npm start
 
 O servidor roda por padrão em http://localhost:3000 e expõe um shim `server-db-shim.js` que conecta o frontend aos endpoints locais.
+\n
+\n
