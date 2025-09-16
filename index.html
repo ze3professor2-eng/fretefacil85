@@ -1765,7 +1765,11 @@
             btn.disabled = true;
             btn.textContent = 'Aguarde...';
             return (async ()=>{
-                try{ await toggleDriverStatus(driverId); }catch(e){ console.error(e); alert('Erro ao processar ação'); throw e; }
+                try{ 
+                    // prefer dataset id (always string) if available to avoid number/string mismatches
+                    const idToUse = (btn && btn.dataset && btn.dataset.id) ? btn.dataset.id : driverId;
+                    await toggleDriverStatus(idToUse);
+                }catch(e){ console.error(e); alert('Erro ao processar ação'); throw e; }
                 finally{ btn.disabled = false; btn.textContent = origText; }
             })();
         }
