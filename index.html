@@ -1749,6 +1749,13 @@
             if (mainBg && settings.backgroundImage) mainBg.style.backgroundImage = `url('${settings.backgroundImage}')`;
         }
 
+        // Small helper to add a timeout to promises to avoid indefinite hangs
+        function withTimeout(promise, ms = 8000, label = ''){
+            let timer;
+            const timeout = new Promise((_, reject) => { timer = setTimeout(()=> reject(new Error('Timeout waiting for '+label)), ms); });
+            return Promise.race([promise.then(r=>{ clearTimeout(timer); return r; }), timeout]).catch(err=>{ clearTimeout(timer); throw err; });
+        }
+
         // Helper to wire the table button to the async toggle and provide immediate UI feedback
         function toggleDriverStatusAsync(btn, driverId){
             if(!btn) return Promise.resolve();
