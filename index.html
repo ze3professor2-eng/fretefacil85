@@ -767,7 +767,7 @@
                         if(idx === -1) merged.push(remote); else merged[idx] = Object.assign({}, merged[idx], remote);
                     });
                     localStorage.setItem('connectFreteDrivers', JSON.stringify(merged));
-                    try{ renderApprovedDriverCard(); }catch(e){}
+                    // UI updates are now driven by user search; avoid auto-render here to prevent duplicates
                 }catch(e){ /* ignore merge errors and avoid clobbering localStorage */ }
             }
             // expose helper to other pages that may run in separate contexts
@@ -897,7 +897,7 @@
                                     const updatedApproved = Object.assign({}, approved, d, { paymentStatus: d.paymentStatus || 'paid' });
                                     localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(updatedApproved));
                                     try{ if(typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(updatedApproved.id); }catch(e){}
-                                                    try{ renderApprovedDriverCard(); }catch(e){}
+                                                    // avoid auto-render; search will display approved drivers when user initiates it
                                     // persist to server if available
                                     try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(updatedApproved).catch(()=>{}); } }catch(e){}
                                 }
@@ -920,7 +920,7 @@
                             if(String(approved.id) === String(id)){
                                 try{ const parsedOld = JSON.parse(approvedRaw); if(parsedOld && parsedOld.id && typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(parsedOld.id); }catch(e){}
                                 localStorage.removeItem('connectFreteLastApprovedDriver');
-                                try{ renderApprovedDriverCard(); }catch(e){}
+                                // avoid auto-render; search will display approved drivers when user initiates it
                                 try{ if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){ window.ServerDB.setApprovedDriver(null).catch(()=>{}); } }catch(e){}
                             }
                         }
@@ -1360,6 +1360,7 @@
                     const msgEl = document.getElementById('registerMsg');
                     if (msgEl) msgEl.classList.add('hidden');
                 });
+            });
 
         // Poll server for approved driver (covers other browsers or if localStorage event isn't available)
         (function(){
@@ -1429,7 +1430,6 @@
             // initial fetch
             fetchApproved();
         })();
-            });
 
         document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1508,8 +1508,8 @@
             });
             
             const resultsContainer = document.getElementById('driversList');
-            // clear any approved-driver card so we don't show duplicate content
-            try{ const approvedCard = document.getElementById('approvedDriverCard'); if(approvedCard) approvedCard.innerHTML = ''; }catch(e){}
+            // We'll render approved (paid) drivers only after the user explicitly searches.
+            // Clear previous results container content, but do NOT auto-render approved drivers here.
             resultsContainer.innerHTML = '';
             
             if (drivers.length === 0) {
@@ -1550,6 +1550,9 @@
             }
             
             document.getElementById('searchResults').classList.remove('hidden');
+            
+            // Render approved (paid) drivers that match the search filters into the approved-driver area.
+            try{ renderApprovedDriverCard(drivers); }catch(e){}
         }
 
         // Display a single approved driver directly in the search results (bypasses location requirement)
@@ -1890,18 +1893,22 @@
             if (mainBg && settings.backgroundImage) mainBg.style.backgroundImage = `url('${settings.backgroundImage}')`;
         }
 
-        // Render approved drivers (show all drivers with paymentStatus === 'paid')
-        function renderApprovedDriverCard(){
+        // Render approved drivers only when passed a drivers array (results of a search).
+        // If called without an array, this function is a no-op to avoid auto-rendering on load.
+        function renderApprovedDriverCard(drivers){
             try{
                 const container = document.getElementById('approvedDriverCard');
                 if(!container) return;
-                // prefer canonical local DB list of drivers and show those marked 'paid'
-                const drivers = (typeof DB !== 'undefined' && DB && typeof DB.getDrivers === 'function') ? DB.getDrivers() : (JSON.parse(localStorage.getItem('connectFreteDrivers')||'[]'));
-                const approved = (Array.isArray(drivers) ? drivers.filter(d => d && String(d.paymentStatus) === 'paid') : []);
+                if(!Array.isArray(drivers)) return; // intentionally no-op unless search provided drivers
+
+                const approved = drivers.filter(d => d && String(d.paymentStatus) === 'paid');
                 if(!approved || approved.length === 0){ container.innerHTML = ''; return; }
 
-                // Render multiple approved drivers horizontally
-                const items = approved.slice(0,6).map(d => {
+                // Render approved drivers horizontally, deduplicated and limited to 6
+                const unique = [];
+                const seen = new Set();
+                approved.forEach(d => { const id = String(d.id); if(!seen.has(id)){ seen.add(id); unique.push(d); } });
+                const items = unique.slice(0,6).map(d => {
                     const photos = (d.photos && Array.isArray(d.photos)) ? d.photos.filter(Boolean) : [];
                     const photoHtml = photos.length ? photos.slice(0,3).map(p=>`<img src="${p}" class="w-20 h-14 object-cover rounded mr-2 flex-shrink-0"/>`).join('') : '<div class="w-20 h-14 bg-gray-700 rounded mr-2 flex items-center justify-center text-xs text-gray-300">Sem foto</div>';
                     const phoneDigits = (d.phone||'').toString().replace(/\D/g,'');
@@ -1925,13 +1932,12 @@
                 }).join('');
 
                 container.innerHTML = `<div class="flex overflow-x-auto py-2">${items}</div>`;
-            }catch(e){ /* renderApprovedDriverCard error suppressed in production */ }
+            }catch(e){ /* suppressed */ }
         }
 
         // Initialize approved driver UI and listen for storage events
         try{
-            // render once at startup
-            renderApprovedDriverCard();
+            // do not auto-render approved drivers at startup; they appear when user clicks Buscar
             // debounce storage events to avoid double renders across quick changes
             let _approvedRenderTimer = null;
             const _onApprovedStorage = (ev)=>{
@@ -1949,7 +1955,7 @@
                     }
                 }catch(e){}
                 if(_approvedRenderTimer) clearTimeout(_approvedRenderTimer);
-                _approvedRenderTimer = setTimeout(()=>{ renderApprovedDriverCard(); _approvedRenderTimer = null; }, 120);
+                _approvedRenderTimer = setTimeout(()=>{ /* no automatic render */ _approvedRenderTimer = null; }, 120);
             };
             // ensure we don't add multiple identical listeners
             window.removeEventListener('storage', _onApprovedStorage);
@@ -2104,7 +2110,7 @@
                         approvedPayload = null;
                     }
                     // ensure UI reflects the change immediately in this tab
-                    try{ renderApprovedDriverCard(); }catch(e){}
+                    // avoid auto-render; UI is updated when the user performs a search
                 }catch(e){ /* Could not set approved driver flag (suppressed) */ }
 
                 // Persist approved driver on server so other devices/browsers can show it (fire-and-forget)
