@@ -20,8 +20,10 @@ module.exports = async function (req, res) {
     if(method === 'PUT'){
       const id = req.query.id || (req.body && req.body.id);
       const updates = req.body || {};
-      // Debug instrumentation: log incoming PUT and payload
-      console.log('PUT /api/drivers received', { id, updates });
+      // Debug instrumentation (only when DEBUG env var set)
+      if(process.env.DEBUG === 'true'){
+        console.log('PUT /api/drivers received', { id, updates });
+      }
 
       // map common camelCase keys from client to DB column names
       const keyMap = {

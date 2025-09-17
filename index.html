@@ -37,6 +37,10 @@
     </script>
     <script src="/server-db-shim.js"></script>
     <script>
+        // Debug flag: set to true to enable verbose logs in browser console
+        window.DEBUG = false;
+        window.debugLog = function(...args){ if(window.DEBUG && console && console.log) console.log(...args); };
+        window.debugWarn = function(...args){ if(window.DEBUG && console && console.warn) console.warn(...args); };
         // If ServerDB is available, we'll try to sync settings on load. The rest of the file keeps existing localStorage behaviour as a fallback.
     </script>
     <style>
@@ -736,16 +740,59 @@
                         localStorage.setItem('connectFreteLastApprovedDriver', JSON.stringify(last));
                         try{ if(typeof window.markDriverRecentlyUpdated === 'function' && last && last.id) window.markDriverRecentlyUpdated(last.id); }catch(e){}
                     } else {
-                        // server has no approved driver — ensure local cache is cleared
-                        try{ const existing = localStorage.getItem('connectFreteLastApprovedDriver'); if(existing){ try{ const parsedOld = JSON.parse(existing); if(parsedOld && parsedOld.id && typeof window.markDriverRecentlyUpdated === 'function') window.markDriverRecentlyUpdated(parsedOld.id); }catch(_){} } }catch(e){}
-                        localStorage.removeItem('connectFreteLastApprovedDriver');
+                        // server has no approved driver — do NOT clear local cache here.
+                        // Keep any local approved entry. The polling logic (`fetchApproved`) will
+                        // reconcile server and local state conservatively (it only clears local
+                        // when the server demonstrates a newer timestamp).
                     }
                 }
             }catch(e){ /* ignore */ }
         })();
 
-        // Adapter: if ServerDB is available, wrap DB methods to proxy to server but keep localStorage fallback.
-        (function attachServerAdapter(){
+            // Adapter: if ServerDB is available, wrap DB methods to proxy to server but keep localStorage fallback.
+            // Helper: merge remote drivers into local cache rather than overwrite everything.
+            function mergeAndStoreDrivers(remoteDrivers){
+                try{
+                    if(!Array.isArray(remoteDrivers)) return;
+                    const local = (typeof DB !== 'undefined' && DB && typeof DB.getDrivers === 'function') ? DB.getDrivers() : (JSON.parse(localStorage.getItem('connectFreteDrivers')||'[]'));
+                    const merged = Array.isArray(local) ? local.slice() : [];
+                    const recent = window._recentDriverUpdates || {};
+                    remoteDrivers.forEach(remote => {
+                        if(!remote || typeof remote.id === 'undefined') return;
+                        const rid = String(remote.id);
+                        const recentTs = recent[rid];
+                        // If we updated this driver locally recently, prefer local for the grace window
+                        if(recentTs && (Date.now() - recentTs) < 30000) return;
+                        const idx = merged.findIndex(d => String(d.id) === rid);
+                        if(idx === -1) merged.push(remote); else merged[idx] = Object.assign({}, merged[idx], remote);
+                    });
+                    localStorage.setItem('connectFreteDrivers', JSON.stringify(merged));
+                    try{ renderApprovedDriverCard(); }catch(e){}
+                }catch(e){ /* ignore merge errors and avoid clobbering localStorage */ }
+            }
+            // expose helper to other pages that may run in separate contexts
+            try{ window.mergeAndStoreDrivers = mergeAndStoreDrivers; }catch(e){}
+
+            // Intercept direct writes to connectFreteDrivers and merge instead of clobbering.
+            try{
+                const __origLocalStorageSetItem = localStorage.setItem.bind(localStorage);
+                localStorage.setItem = function(key, value){
+                    try{
+                        if(String(key) === 'connectFreteDrivers'){
+                            // if incoming value is JSON array, merge by id
+                            try{
+                                const parsed = JSON.parse(value);
+                                if(Array.isArray(parsed)){
+                                    try{ mergeAndStoreDrivers(parsed); return; }catch(e){}
+                                }
+                            }catch(e){}
+                        }
+                    }catch(e){}
+                    return __origLocalStorageSetItem(key, value);
+                };
+            }catch(e){}
+
+            (function attachServerAdapter(){
             if(!window.ServerDB) return;
             // override add/get/update methods to prefer server but update local cache for synchronous reads
             const originalGetDrivers = DB.getDrivers.bind(DB);
@@ -770,20 +817,7 @@
                 try{
                     window.ServerDB.getDrivers().then(ds => {
                         if(!Array.isArray(ds)) return;
-                        try{
-                            const local = originalGetDrivers() || [];
-                            const merged = local.slice();
-                            const recent = window._recentDriverUpdates || {};
-                            ds.forEach(remote => {
-                                const rid = String(remote.id);
-                                const recentTs = recent[rid];
-                                // If we updated this driver locally less than 5s ago, skip overwriting it
-                                if(recentTs && (Date.now() - recentTs) < 5000) return;
-                                const idx = merged.findIndex(d => String(d.id) === rid);
-                                if(idx === -1) merged.push(remote); else merged[idx] = remote;
-                            });
-                            localStorage.setItem('connectFreteDrivers', JSON.stringify(merged));
-                        }catch(e){}
+                        try{ mergeAndStoreDrivers(ds); }catch(e){}
                     }).catch(()=>{});
                 }catch(e){}
                 return originalGetDrivers();
@@ -1335,32 +1369,8 @@
                     const r = await fetch('/api/approved-driver');
                     if(!r.ok) return;
                     const data = await r.json();
-                    // If server returns null, we should only clear local cache if the server is newer
+                    // If server returns null, be conservative and do nothing — keep local approved entry.
                     if(!data){
-                        try{
-                            const localRaw = localStorage.getItem('connectFreteLastApprovedDriver');
-                            if(!localRaw){
-                                // nothing local -> safe to clear UI
-                                try{ renderApprovedDriverCard(); }catch(e){}
-                                lastSeenTs = Date.now();
-                                return;
-                            }
-                            const local = JSON.parse(localRaw);
-                            // If local has no timestamp, be conservative and keep it
-                            if(!local.ts){
-                                // do not clear local entry
-                                return;
-                            }
-                            // if server has no data but local ts is older than some threshold, we may clear it
-                            // use lastSeenTs as a proxy: only clear local if lastSeenTs is newer than local.ts (i.e., we've seen a newer server state before)
-                            if(lastSeenTs && lastSeenTs > (local.ts || 0)){
-                                try{ localStorage.removeItem('connectFreteLastApprovedDriver'); }catch(e){}
-                                try{ renderApprovedDriverCard(); }catch(e){}
-                                lastSeenTs = Date.now();
-                                return;
-                            }
-                            // otherwise keep local entry (server null likely stale or not authoritative yet)
-                        }catch(e){ /* ignore parsing errors and keep local */ }
                         return;
                     }
                     if(data.ts && data.ts > lastSeenTs){
@@ -1375,12 +1385,9 @@
                                     if(r.ok){
                                         const remoteDrv = await r.json();
                                         if(remoteDrv && remoteDrv.id){
-                                            // update local cache so subsequent reads are fast
+                                            // update local cache so subsequent reads are fast (merge)
                                             try{
-                                                const cur = DB.getDrivers();
-                                                const idx = cur.findIndex(d => String(d.id) === String(remoteDrv.id));
-                                                if(idx === -1) cur.push(remoteDrv); else cur[idx] = remoteDrv;
-                                                localStorage.setItem('connectFreteDrivers', JSON.stringify(cur));
+                                                mergeAndStoreDrivers([remoteDrv]);
                                                 full = remoteDrv;
                                             }catch(e){}
                                         }
@@ -1393,7 +1400,7 @@
                             try{
                                 const recent = window._recentDriverUpdates || {};
                                 const recentTs = recent[String(data.id)];
-                                if(recentTs && (Date.now() - recentTs) < 5000){
+                                if(recentTs && (Date.now() - recentTs) < 30000){
                                     // skip applying server-provided approved driver because a local update happened moments ago
                                     return;
                                 }
@@ -1589,51 +1596,42 @@
                 window.addEventListener('storage', function(e){
                     try{
                         if(!e || !e.key) return;
-                        if(e.key === 'connectFreteLastApprovedDriver'){
-                            const raw = e.newValue || localStorage.getItem('connectFreteLastApprovedDriver');
-                            if(!raw){
-                                // cleared — update UI to remove the card
-                                try{ renderApprovedDriverCard(); }catch(err){}
-                                return; // removed or cleared
-                            }
-                            const approved = JSON.parse(raw);
-                            // Try to find the full driver object in local DB (to get photos etc.)
-                            (async function(){
-                                try{
-                                    const drivers = DB.getDrivers();
-                                    let full = drivers.find(d => String(d.id) === String(approved.id));
-                                    if(!full){
-                                        // attempt server fetch for the driver
+                                if(e.key === 'connectFreteLastApprovedDriver'){
+                                    const raw = e.newValue || localStorage.getItem('connectFreteLastApprovedDriver');
+                                    if(!raw){
+                                        // cleared — update UI to remove the card(s)
+                                        try{ renderApprovedDriverCard(); }catch(err){}
+                                        return; // removed or cleared
+                                    }
+                                    const approved = JSON.parse(raw);
+                                    // Try to refresh local driver cache for this id (so photos and details are available),
+                                    // but always render the approved-driver area using the local DB snapshot (which shows all paid drivers).
+                                    (async function(){
                                         try{
-                                            const r = await fetch(`/api/drivers/${encodeURIComponent(approved.id)}`);
-                                            if(r.ok) full = await r.json();
-                                            if(full && full.id){
-                                                const cur = DB.getDrivers();
-                                                const idx = cur.findIndex(d => String(d.id) === String(full.id));
-                                                if(idx === -1) cur.push(full); else cur[idx] = full;
-                                                localStorage.setItem('connectFreteDrivers', JSON.stringify(cur));
+                                            const drivers = DB.getDrivers();
+                                            let full = drivers.find(d => String(d.id) === String(approved.id));
+                                            if(!full){
+                                                // attempt server fetch for the driver and merge it
+                                                try{
+                                                    const r = await fetch(`/api/drivers/${encodeURIComponent(approved.id)}`);
+                                                    if(r.ok) full = await r.json();
+                                                    if(full && full.id){
+                                                        try{ mergeAndStoreDrivers([full]); }catch(e){}
+                                                    }
+                                                }catch(e){}
                                             }
-                                        }catch(e){}
-                                    }
 
-                                    const toShow = full || approved;
-                                    // Prefill search inputs so user sees context in the search form
-                                    try{
-                                        if(document.getElementById('vehicleType') && toShow.vehicleType) document.getElementById('vehicleType').value = toShow.vehicleType;
-                                        if(document.getElementById('locationInput') && toShow.city) document.getElementById('locationInput').value = toShow.city || '';
-                                    }catch(e){}
+                                            // Prefill search inputs so user sees context in the search form
+                                            try{
+                                                const toShow = full || approved;
+                                                if(document.getElementById('vehicleType') && toShow.vehicleType) document.getElementById('vehicleType').value = toShow.vehicleType;
+                                                if(document.getElementById('locationInput') && toShow.city) document.getElementById('locationInput').value = toShow.city || '';
+                                            }catch(e){}
 
-                                    if(full && full.paymentStatus === 'paid'){
-                                        try{ searchDrivers(); }catch(e){ 
-                                            const approvedCard = document.getElementById('approvedDriverCard');
-                                            if(!approvedCard || !approvedCard.innerHTML.trim()) displayApprovedDriver(toShow);
-                                        }
-                                    } else {
-                                        const approvedCard = document.getElementById('approvedDriverCard');
-                                        if(!approvedCard || !approvedCard.innerHTML.trim()) displayApprovedDriver(toShow);
-                                    }
-                                }catch(err){ console.error('Error handling approved driver from storage', err); displayApprovedDriver(approved); }
-                            })();
+                                            // Re-render the approved drivers area (this will show all drivers with paymentStatus==='paid')
+                                            try{ renderApprovedDriverCard(); }catch(e){}
+                                        }catch(err){ console.error('Error handling approved driver from storage', err); try{ renderApprovedDriverCard(); }catch(_){}};
+                                    })();
                         }
                     }catch(err){ console.error('Error handling storage event', err); }
                 });
@@ -1892,33 +1890,41 @@
             if (mainBg && settings.backgroundImage) mainBg.style.backgroundImage = `url('${settings.backgroundImage}')`;
         }
 
-        // Render the last approved driver (appears in the search box area)
+        // Render approved drivers (show all drivers with paymentStatus === 'paid')
         function renderApprovedDriverCard(){
             try{
-                const json = localStorage.getItem('connectFreteLastApprovedDriver');
                 const container = document.getElementById('approvedDriverCard');
                 if(!container) return;
-                if(!json){ container.innerHTML = ''; return; }
-                const d = JSON.parse(json);
-                // build photos carousel/simple list
-                const photos = (d.photos && Array.isArray(d.photos)) ? d.photos.filter(Boolean) : [];
-                const photoHtml = photos.length ? photos.slice(0,3).map(p=>`<img src="${p}" class="w-20 h-14 object-cover rounded mr-2 flex-shrink-0"/>`).join('') : '<div class="w-20 h-14 bg-gray-700 rounded mr-2 flex items-center justify-center text-xs text-gray-300">Sem foto</div>';
-                const phoneDigits = (d.phone||'').toString().replace(/\D/g,'');
-                const waNumber = phoneDigits.length===10||phoneDigits.length===11 ? '55'+phoneDigits : phoneDigits;
-                container.innerHTML = `
-                    <div class="p-3 bg-white/5 rounded flex items-center">
-                        <div class="mr-3 flex-shrink-0 flex items-center overflow-x-auto flex-nowrap">${photoHtml}</div>
-                        <div class="flex-1 text-sm">
-                            <div class="font-semibold">${d.name || ''}</div>
-                            <div class="text-gray-300">${d.city || ''}</div>
-                            <div class="text-gray-300">${d.vehicleType ? (d.vehicleType + (d.vehiclePlate ? ' • ' + d.vehiclePlate : '')) : ''}</div>
-                            <div class="text-gray-300">${d.phone || ''}</div>
+                // prefer canonical local DB list of drivers and show those marked 'paid'
+                const drivers = (typeof DB !== 'undefined' && DB && typeof DB.getDrivers === 'function') ? DB.getDrivers() : (JSON.parse(localStorage.getItem('connectFreteDrivers')||'[]'));
+                const approved = (Array.isArray(drivers) ? drivers.filter(d => d && String(d.paymentStatus) === 'paid') : []);
+                if(!approved || approved.length === 0){ container.innerHTML = ''; return; }
+
+                // Render multiple approved drivers horizontally
+                const items = approved.slice(0,6).map(d => {
+                    const photos = (d.photos && Array.isArray(d.photos)) ? d.photos.filter(Boolean) : [];
+                    const photoHtml = photos.length ? photos.slice(0,3).map(p=>`<img src="${p}" class="w-20 h-14 object-cover rounded mr-2 flex-shrink-0"/>`).join('') : '<div class="w-20 h-14 bg-gray-700 rounded mr-2 flex items-center justify-center text-xs text-gray-300">Sem foto</div>';
+                    const phoneDigits = (d.phone||'').toString().replace(/\D/g,'');
+                    const waNumber = phoneDigits.length===10||phoneDigits.length===11 ? '55'+phoneDigits : phoneDigits;
+                    return `
+                        <div class="p-3 bg-white/5 rounded flex-shrink-0 w-64 mr-3">
+                            <div class="flex items-start">
+                                <div class="mr-3 flex-shrink-0 flex items-center overflow-x-auto flex-nowrap">${photoHtml}</div>
+                                <div class="flex-1 text-sm">
+                                    <div class="font-semibold">${d.name || ''}</div>
+                                    <div class="text-gray-300 text-sm">${d.city || ''}</div>
+                                    <div class="text-gray-300 text-sm">${d.vehicleType ? (d.vehicleType + (d.vehiclePlate ? ' • ' + d.vehiclePlate : '')) : ''}</div>
+                                    <div class="text-gray-300 text-sm">${d.phone || ''}</div>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-right">
+                                <a href="https://wa.me/${waNumber}?text=${encodeURIComponent('Olá, vi seu perfil no Connect Frete') }" target="_blank" class="px-3 py-1 bg-green-600 rounded text-sm">WhatsApp</a>
+                            </div>
                         </div>
-                        <div class="ml-3">
-                            <a href="https://wa.me/${waNumber}?text=${encodeURIComponent('Olá, vi seu perfil no Connect Frete') }" target="_blank" class="px-3 py-1 bg-green-600 rounded text-sm">WhatsApp</a>
-                        </div>
-                    </div>
-                `;
+                    `;
+                }).join('');
+
+                container.innerHTML = `<div class="flex overflow-x-auto py-2">${items}</div>`;
             }catch(e){ /* renderApprovedDriverCard error suppressed in production */ }
         }
 
@@ -1930,7 +1936,7 @@
             let _approvedRenderTimer = null;
             const _onApprovedStorage = (ev)=>{
                 if(ev.key !== 'connectFreteLastApprovedDriver') return;
-                // mark recent update so poller won't overwrite a freshly-updated approved entry
+                // mark recent update so poller won't overwrite a freshly-updated approved entry (30s grace window)
                 try{
                     if(ev.newValue){
                         try{
@@ -1978,6 +1984,19 @@
                     // prefer dataset id (always string) if available to avoid number/string mismatches
                     const idToUse = (btn && btn.dataset && btn.dataset.id) ? btn.dataset.id : driverId;
                     await toggleDriverStatus(idToUse);
+                    // after toggling, refresh search filters so approved driver is visible (or removed if blocked)
+                    try{
+                        const drivers = DB.getDrivers();
+                        const drv = drivers.find(d => String(d.id) === String(idToUse));
+                        if(drv){
+                            // set filters (vehicleType and locationInput) to match the driver and run search
+                            const vtEl = document.getElementById('vehicleType');
+                            const locEl = document.getElementById('locationInput');
+                            if(vtEl && drv.vehicleType) vtEl.value = drv.vehicleType;
+                            if(locEl && drv.city) locEl.value = drv.city || '';
+                            try{ searchDrivers(); }catch(e){}
+                        }
+                    }catch(e){}
                 }catch(e){ console.error(e); alert('Erro ao processar ação'); throw e; }
                 finally{ btn.disabled = false; btn.textContent = origText; }
             })();
@@ -1995,8 +2014,8 @@
                     if(window.ServerDB && typeof window.ServerDB.getDrivers === 'function'){
                         const remoteDrivers = await withTimeout(window.ServerDB.getDrivers(), 8000, 'ServerDB.getDrivers');
                         if(Array.isArray(remoteDrivers) && remoteDrivers.length){
-                            localStorage.setItem('connectFreteDrivers', JSON.stringify(remoteDrivers));
-                            drivers = remoteDrivers;
+                            try{ mergeAndStoreDrivers(remoteDrivers); }catch(e){}
+                            drivers = DB.getDrivers();
                             driver = drivers.find(d => String(d.id) === String(driverId));
                         }
                     } else {
@@ -2005,8 +2024,8 @@
                         if(resp.ok){
                             const remoteDrivers = await resp.json();
                             if(Array.isArray(remoteDrivers) && remoteDrivers.length){
-                                localStorage.setItem('connectFreteDrivers', JSON.stringify(remoteDrivers));
-                                drivers = remoteDrivers;
+                                try{ mergeAndStoreDrivers(remoteDrivers); }catch(e){}
+                                drivers = DB.getDrivers();
                                 driver = drivers.find(d => String(d.id) === String(driverId));
                             }
                         }
@@ -2057,8 +2076,8 @@
                     DB.updateDriver(driverId, { paymentStatus: newStatus });
                     try{ if(typeof markDriverRecentlyUpdated === 'function'){ markDriverRecentlyUpdated(driverId); } }catch(e){}
                     // diagnostic: log local driver state and approved entry
-                    try{ console.log('Local updateDriver applied', driverId, newStatus, DB.getDrivers().find(d=>String(d.id)===String(driverId))); }catch(e){}
-                    try{ console.log('Local connectFreteLastApprovedDriver after update:', localStorage.getItem('connectFreteLastApprovedDriver')); }catch(e){}
+                    try{ debugLog('Local updateDriver applied', driverId, newStatus, DB.getDrivers().find(d=>String(d.id)===String(driverId))); }catch(e){}
+                    try{ debugLog('Local connectFreteLastApprovedDriver after update:', localStorage.getItem('connectFreteLastApprovedDriver')); }catch(e){}
                 }catch(e){}
 
                 // manage storage flag for cross-tab notification and persist local cache first
@@ -2091,9 +2110,8 @@
                 // Persist approved driver on server so other devices/browsers can show it (fire-and-forget)
                 try{
                     if(window.ServerDB && typeof window.ServerDB.setApprovedDriver === 'function'){
-                        (async function(payload){
-                            try{ await withTimeout(window.ServerDB.setApprovedDriver(payload), 5000, 'ServerDB.setApprovedDriver'); }catch(_){ /* ignore */ }
-                        })(approvedPayload);
+                        // await here to ensure server meta is updated before admin UI potentially closes
+                        try{ await withTimeout(window.ServerDB.setApprovedDriver(approvedPayload), 5000, 'ServerDB.setApprovedDriver'); }catch(_){ /* ignore */ }
                     }
                 }catch(e){}
 
@@ -2103,8 +2121,8 @@
                     const body = JSON.stringify({ id: driverId, paymentstatus: newStatus });
                     try{
                         const resp = await withTimeout(fetch(url, { method: 'PUT', headers: {'content-type':'application/json'}, body }), 8000, 'PUT /api/drivers canonical');
-                        try{ console.log('Canonical PUT response', resp.status); }catch(e){}
-                    }catch(e){ console.warn('Canonical PUT failed', e); }
+                        try{ debugLog('Canonical PUT response', resp.status); }catch(e){}
+                    }catch(e){ debugWarn('Canonical PUT failed', e); }
                 }catch(e){}
 
                 loadAdminPanelData();

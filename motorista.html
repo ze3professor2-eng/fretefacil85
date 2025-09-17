@@ -210,6 +210,37 @@
 
 		// If ServerDB is available, attach adapter similar to index.html
 		(function attachServerAdapterLocal(){
+			// Helper: merge remote drivers into local cache rather than overwrite everything.
+			function mergeAndStoreDrivers(remoteDrivers){
+				try{
+					if(!Array.isArray(remoteDrivers)) return;
+					const local = JSON.parse(localStorage.getItem('connectFreteDrivers')||'[]');
+					const merged = Array.isArray(local) ? local.slice() : [];
+					const recent = window._recentDriverUpdates || {};
+					remoteDrivers.forEach(remote => {
+						if(!remote || typeof remote.id === 'undefined') return;
+						const rid = String(remote.id);
+						const recentTs = recent[rid];
+						if(recentTs && (Date.now() - recentTs) < 30000) return;
+						const idx = merged.findIndex(d => String(d.id) === rid);
+						if(idx === -1) merged.push(remote); else merged[idx] = Object.assign({}, merged[idx], remote);
+					});
+					localStorage.setItem('connectFreteDrivers', JSON.stringify(merged));
+				}catch(e){}
+			}
+			try{ window.mergeAndStoreDrivers = window.mergeAndStoreDrivers || mergeAndStoreDrivers; }catch(e){}
+			// Intercept direct writes to connectFreteDrivers and merge instead of clobbering.
+			try{
+				const __origLocalStorageSetItem = localStorage.setItem.bind(localStorage);
+				localStorage.setItem = function(key, value){
+					try{
+						if(String(key) === 'connectFreteDrivers'){
+							try{ const parsed = JSON.parse(value); if(Array.isArray(parsed)){ try{ mergeAndStoreDrivers(parsed); return; }catch(e){} } }catch(e){}
+						}
+					}catch(e){}
+					return __origLocalStorageSetItem(key, value);
+				};
+			}catch(e){}
 			if(!window.ServerDB) return;
 			const origGetDrivers = DB.getDrivers.bind(DB);
 			const origAddOrUpdate = DB.addOrUpdateDriver.bind(DB);
@@ -218,7 +249,7 @@
 			const origAddPayment = DB.addPayment.bind(DB);
 
 			DB.getDrivers = function(){
-				try{ window.ServerDB.getDrivers().then(ds=>{ if(Array.isArray(ds)) localStorage.setItem('connectFreteDrivers', JSON.stringify(ds)); }).catch(()=>{}); }catch(e){}
+				try{ window.ServerDB.getDrivers().then(ds=>{ if(Array.isArray(ds)) try{ window.mergeAndStoreDrivers ? window.mergeAndStoreDrivers(ds) : localStorage.setItem('connectFreteDrivers', JSON.stringify(ds)); }catch(e){} }).catch(()=>{}); }catch(e){}
 				return origGetDrivers();
 			};
 
